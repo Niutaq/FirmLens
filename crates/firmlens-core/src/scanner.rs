@@ -24,6 +24,9 @@ pub struct ScanOptions {
     pub excluded_output_path: Option<PathBuf>,
     pub enable_binwalk: bool,
     pub binwalk_image: Option<String>,
+    /// When true, standalone binary/config file inputs (`InputKind::BinaryImage`) are also
+    /// inspected for embedded credential strings and PEM keys up to `max_file_bytes`.
+    pub scan_binary_image_payload: bool,
 }
 
 const EXCLUDED_DIR_NAMES: &[&str] = &[
@@ -343,6 +346,85 @@ pub fn scan_path(input_path: &Path, options: &ScanOptions) -> Result<ScanReport,
                 informational_hints: f_hints,
                 suppressed_candidates: f_supp,
             });
+        }
+    } else if staged.provenance.input_kind == InputKind::BinaryImage
+        && options.scan_binary_image_payload
+    {
+        let rel_path = input_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("firmware.bin")
+            .to_string();
+
+        if let Ok(meta) = fs::symlink_metadata(input_path) {
+            let file_size = meta.len();
+            if file_size <= options.scan_limits.max_file_bytes {
+                let mut buf = Vec::with_capacity(file_size as usize);
+                if File::open(input_path)
+                    .and_then(|f| {
+                        f.take(options.scan_limits.max_file_bytes)
+                            .read_to_end(&mut buf)
+                    })
+                    .is_ok()
+                {
+                    files_scanned = 1;
+                    total_bytes_read = buf.len() as u64;
+                    let is_bin = buf.contains(&0) || std::str::from_utf8(&buf).is_err();
+                    let file_type = classify_file_type(&rel_path, is_bin);
+                    let mut file_outcome =
+                        analyze_file_bytes(&rel_path, &buf, options.scan_limits.max_record_bytes);
+
+                    let f_actionable = file_outcome
+                        .findings
+                        .iter()
+                        .filter(|f| f.kind == FindingKind::Finding && f.status.is_actionable())
+                        .count();
+                    let f_review = file_outcome
+                        .findings
+                        .iter()
+                        .filter(|f| {
+                            f.kind == FindingKind::Finding
+                                && f.status == CandidateStatus::RequiresReview
+                        })
+                        .count();
+                    let f_hints = file_outcome
+                        .findings
+                        .iter()
+                        .filter(|f| f.kind == FindingKind::Hint)
+                        .count();
+                    let f_supp = file_outcome.suppressed.len();
+
+                    findings.append(&mut file_outcome.findings);
+                    suppressed.append(&mut file_outcome.suppressed);
+
+                    inventory.push(FileInventoryEntry {
+                        path: rel_path,
+                        file_type,
+                        size_bytes: file_size,
+                        analysis_status: FileAnalysisStatus::Scanned,
+                        actionable_findings: f_actionable,
+                        review_candidates: f_review,
+                        informational_hints: f_hints,
+                        suppressed_candidates: f_supp,
+                    });
+                }
+            } else {
+                skipped_files.push(SkippedEntry {
+                    path: rel_path.clone(),
+                    reason: "max_file_bytes_exceeded".to_string(),
+                });
+                inventory.push(FileInventoryEntry {
+                    path: rel_path,
+                    file_type: FileTypeClass::DataOrBinary,
+                    size_bytes: file_size,
+                    analysis_status: FileAnalysisStatus::TruncatedOrLimited,
+                    actionable_findings: 0,
+                    review_candidates: 0,
+                    informational_hints: 0,
+                    suppressed_candidates: 0,
+                });
+                budget_exhausted = true;
+            }
         }
     }
 

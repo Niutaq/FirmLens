@@ -8,8 +8,8 @@ use axum::{
     Json, Router,
 };
 use firmlens_core::{
-    list_rules, scan_path, Finding, IngestionLimits, IngestionOutcome, ScanLimits, ScanOptions,
-    ScanReport, SummaryCounts, RULESET_VERSION, SCANNER_VERSION, SCHEMA_VERSION,
+    list_rules, scan_path, Finding, IngestionLimits, IngestionOutcome, InputKind, ScanLimits,
+    ScanOptions, ScanReport, SummaryCounts, RULESET_VERSION, SCANNER_VERSION, SCHEMA_VERSION,
 };
 use http_body_util::BodyExt;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ pub const DEFAULT_PORT: u16 = 8787;
 pub const MAX_ADMITTED_JOBS: usize = 4;
 pub const MAX_ACTIVE_WORKERS: usize = 2;
 pub const MAX_RETAINED_SCANS: usize = 8;
-pub const DEFAULT_MAX_UPLOAD_BYTES: u64 = 128 * 1024 * 1024; // 128 MiB
+pub const DEFAULT_MAX_UPLOAD_BYTES: u64 = 256 * 1024 * 1024; // 256 MiB
 
 #[derive(Debug, Clone)]
 pub struct ApiConfig {
@@ -43,13 +43,26 @@ pub struct ApiConfig {
 
 impl Default for ApiConfig {
     fn default() -> Self {
+        let scan_limits = ScanLimits {
+            max_file_bytes: 128 * 1024 * 1024, // 128 MiB per firmware image/file
+            max_total_bytes: 256 * 1024 * 1024, // 256 MiB total read
+            ..ScanLimits::default()
+        };
+
+        let ingestion_limits = IngestionLimits {
+            max_input_bytes: DEFAULT_MAX_UPLOAD_BYTES,
+            max_expanded_bytes: 512 * 1024 * 1024, // 512 MiB expanded stream
+            max_member_bytes: 128 * 1024 * 1024,   // 128 MiB per archive member
+            ..IngestionLimits::default()
+        };
+
         Self {
             max_admitted_jobs: MAX_ADMITTED_JOBS,
             max_active_workers: MAX_ACTIVE_WORKERS,
             max_retained_scans: MAX_RETAINED_SCANS,
             max_upload_bytes: DEFAULT_MAX_UPLOAD_BYTES,
-            scan_limits: ScanLimits::default(),
-            ingestion_limits: IngestionLimits::default(),
+            scan_limits,
+            ingestion_limits,
         }
     }
 }
@@ -392,7 +405,16 @@ async fn export_scan_report(
         .filename
         .trim_end_matches(".tar.gz")
         .trim_end_matches(".tgz")
-        .trim_end_matches(".tar");
+        .trim_end_matches(".tar")
+        .trim_end_matches(".zip")
+        .trim_end_matches(".bin")
+        .trim_end_matches(".img")
+        .trim_end_matches(".fw")
+        .trim_end_matches(".chk")
+        .trim_end_matches(".pat")
+        .trim_end_matches(".rom")
+        .trim_end_matches(".ubi")
+        .trim_end_matches(".dat");
     let attachment = format!("attachment; filename=\"{safe_stem}.firmlens.json\"");
 
     let mut resp = (StatusCode::OK, json_bytes).into_response();
@@ -423,36 +445,41 @@ fn sanitize_archive_filename(raw: &str) -> Result<(String, &'static str), ApiErr
         ));
     }
     // Extract basename only (never trust client directory components)
-    let base = trimmed.rsplit(['/', '\\']).next().unwrap_or("").trim();
-    if base.is_empty()
-        || base.starts_with('.')
-        || !base
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
-    {
+    let base_raw = trimmed.rsplit(['/', '\\']).next().unwrap_or("").trim();
+    if base_raw.is_empty() || base_raw.starts_with('.') {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "invalid_filename",
-            "Archive filename must contain only portable ASCII characters",
+            "Invalid archive filename",
         ));
     }
 
+    // Replace vendor filename punctuation (e.g. brackets `[20260603]`, parentheses, spaces) with `_`
+    let base: String = base_raw
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
     let lower = base.to_ascii_lowercase();
-    let suffix = if lower.ends_with(".tar.gz") {
-        ".tar.gz"
-    } else if lower.ends_with(".tgz") {
-        ".tgz"
-    } else if lower.ends_with(".tar") {
-        ".tar"
-    } else {
+    const ALLOWED_SUFFIXES: &[&str] = &[
+        ".tar.gz", ".tgz", ".tar", ".zip", ".bin", ".img", ".fw", ".chk", ".pat", ".rom", ".ubi",
+        ".dat", ".conf", ".cfg", ".ini", ".env", ".pem", ".key", ".json", ".yaml", ".yml",
+    ];
+    let Some(&suffix) = ALLOWED_SUFFIXES.iter().find(|&&s| lower.ends_with(s)) else {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "unsupported_archive_extension",
-            "Web uploads accept only .tar, .tar.gz, or .tgz archives",
+            "Web uploads accept .tar, .tar.gz, .tgz, .zip, .bin, .img, .fw, .chk, .pat, .rom, .ubi, .dat, or config/key files",
         ));
     };
 
-    Ok((base.to_string(), suffix))
+    Ok((base, suffix))
 }
 
 async fn upload_and_scan(
@@ -672,6 +699,7 @@ async fn upload_and_scan(
         // Optional Docker Binwalk identification remains CLI-only
         enable_binwalk: false,
         binwalk_image: None,
+        scan_binary_image_payload: true,
     };
 
     let display_name = sanitized_name.clone();
@@ -699,8 +727,22 @@ async fn upload_and_scan(
         )
     })?;
 
-    // Never leak server temporary paths in metadata.root
+    // Never leak server temporary paths in metadata.root or standalone binary file entries
     report.metadata.root = display_name.clone();
+    if report.ingestion.input_kind == InputKind::BinaryImage {
+        for f in &mut report.findings {
+            f.file_path = display_name.clone();
+        }
+        for s in &mut report.suppressed {
+            s.file_path = display_name.clone();
+        }
+        for inv in &mut report.inventory {
+            inv.path = display_name.clone();
+        }
+        for sk in &mut report.skipped_files {
+            sk.path = display_name.clone();
+        }
+    }
 
     let created_unix_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)

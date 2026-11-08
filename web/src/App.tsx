@@ -763,7 +763,6 @@ export function App() {
             method: "POST",
             headers: {
               "Content-Type": "application/octet-stream",
-              "X-Filename": file.name,
             },
             body: file,
           },
@@ -810,7 +809,10 @@ export function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const stem = scan.filename.replace(/(\.tar\.gz|\.tgz|\.tar)$/i, "");
+    const stem = scan.filename.replace(
+      /(\.tar\.gz|\.tgz|\.tar|\.zip|\.bin|\.img|\.fw|\.chk|\.pat|\.rom|\.ubi|\.dat)$/i,
+      "",
+    );
     a.download = `${stem}.firmlens.json`;
     document.body.appendChild(a);
     a.click();
@@ -930,7 +932,7 @@ export function App() {
               id="archive-upload-input"
               data-testid="archive-upload-input"
               type="file"
-              accept=".tar,.tar.gz,.tgz"
+              accept=".tar,.tar.gz,.tgz,.zip,.bin,.img,.fw,.chk,.pat,.rom,.ubi,.dat,.conf,.cfg,.ini,.env,.pem,.key,.json,.yaml,.yml"
               multiple
               onChange={handleFileUpload}
               disabled={uploading}

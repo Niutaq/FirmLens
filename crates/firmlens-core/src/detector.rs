@@ -70,7 +70,16 @@ pub fn classify_file_type(rel_path: &str, is_binary: bool) -> FileTypeClass {
     {
         return FileTypeClass::Config;
     }
-    if is_binary || lower.ends_with(".dat") || lower.ends_with(".bin") || lower.ends_with(".fw") {
+    if is_binary
+        || lower.ends_with(".dat")
+        || lower.ends_with(".bin")
+        || lower.ends_with(".fw")
+        || lower.ends_with(".img")
+        || lower.ends_with(".chk")
+        || lower.ends_with(".pat")
+        || lower.ends_with(".rom")
+        || lower.ends_with(".ubi")
+    {
         return FileTypeClass::DataOrBinary;
     }
     FileTypeClass::Other
@@ -128,7 +137,12 @@ pub fn analyze_file_bytes(
         || Path::new(rel_path)
             .extension()
             .and_then(|e| e.to_str())
-            .map(|e| e.eq_ignore_ascii_case("dat") || e.eq_ignore_ascii_case("bin"))
+            .map(|e| {
+                matches!(
+                    e.to_ascii_lowercase().as_str(),
+                    "dat" | "bin" | "fw" | "img" | "chk" | "pat" | "rom" | "ubi"
+                )
+            })
             .unwrap_or(false);
 
     if is_probably_binary {
@@ -1113,12 +1127,34 @@ fn analyze_binary_bytes(rel_path: &str, bytes: &[u8]) -> FileDetectionOutcome {
     const PATTERNS: &[&str] = &[
         "api_token=",
         "api_key=",
+        "auth_token=",
+        "webhook_token=",
         "password=",
+        "admin_password=",
+        "root_password=",
+        "wifi_password=",
+        "default_password=",
+        "user_password=",
+        "http_passwd=",
+        "passwd=",
+        "wpa_psk=",
         "mqtt_password=",
+        "mqtt_pass=",
+        "master_secret=",
+        "secret_key=",
+        "snmp_community=",
+        "iot_hub_sas_key=",
+        "shared_access_key=",
+        "provisioning_token=",
+        "bootstrap_secret=",
+        "service_account_secret=",
         "-----BEGIN PRIVATE KEY-----",
         "-----BEGIN RSA PRIVATE KEY-----",
         "-----BEGIN EC PRIVATE KEY-----",
         "-----BEGIN OPENSSH PRIVATE KEY-----",
+        "-----BEGIN CERTIFICATE-----",
+        "-----BEGIN PUBLIC KEY-----",
+        "-----BEGIN RSA PUBLIC KEY-----",
     ];
 
     let ac = BIN_AC.get_or_init(|| AhoCorasick::new(PATTERNS).unwrap());
@@ -1130,7 +1166,7 @@ fn analyze_binary_bytes(rel_path: &str, bytes: &[u8]) -> FileDetectionOutcome {
         let start = mat.start();
         let end = mat.end();
 
-        if pat_idx <= 3 {
+        if pat_idx <= 22 {
             // Assignment pattern in binary stream
             let slice_after = &bytes[end..bytes.len().min(end + 128)];
             let val_len = slice_after
@@ -1140,16 +1176,22 @@ fn analyze_binary_bytes(rel_path: &str, bytes: &[u8]) -> FileDetectionOutcome {
             if val_len == 0 {
                 continue;
             }
-            let val_str = String::from_utf8_lossy(&slice_after[..val_len]);
+            let val_raw = String::from_utf8_lossy(&slice_after[..val_len]);
+            let val_str = unquote_value(val_raw.trim());
             let rule_id = match pat_idx {
-                0 | 1 => "FL004",
-                2 => "FL001",
-                3 => "FL002",
+                0..=3 => "FL004",
+                4..=12 => "FL001",
+                13 | 14 => "FL002",
+                15 | 16 => "FL005",
+                17 => "FL009",
+                18 | 19 => "FL010",
+                20 | 21 => "FL011",
+                22 => "FL012",
                 _ => "FL005",
             };
             let rule = find_rule(rule_id).expect("rule exists");
 
-            if let Some(reason) = classify_suppression_reason(&val_str) {
+            if let Some(reason) = classify_suppression_reason(val_str) {
                 outcome.suppressed.push(SuppressedCandidate {
                     rule_id: rule.id.to_string(),
                     category: rule.category.to_string(),
@@ -1204,7 +1246,7 @@ fn analyze_binary_bytes(rel_path: &str, bytes: &[u8]) -> FileDetectionOutcome {
                 explanation: rule.explanation.to_string(),
                 remediation: rule.remediation.to_string(),
             });
-        } else {
+        } else if pat_idx <= 26 {
             // PEM private-key marker in binary stream
             let marker = PATTERNS[pat_idx];
             let end_marker = marker.replacen("-----BEGIN ", "-----END ", 1);
@@ -1263,6 +1305,26 @@ fn analyze_binary_bytes(rel_path: &str, bytes: &[u8]) -> FileDetectionOutcome {
                     remediation: "Inspect the surrounding data in a controlled environment to determine whether a key is present.".to_string(),
                 });
             }
+        } else {
+            // Public PEM certificate or public key in binary stream -> record as suppressed
+            let rule = find_rule("FL003").expect("FL003 exists");
+            outcome.suppressed.push(SuppressedCandidate {
+                rule_id: rule.id.to_string(),
+                category: rule.category.to_string(),
+                status: CandidateStatus::BenignOrSuppressed,
+                suppression_reason: "public_certificate_or_key".to_string(),
+                policy_points: 0,
+                signals: vec![EvidenceSignal {
+                    name: "public_pem_header".to_string(),
+                    points: -100,
+                    detail: "Public certificate or public key PEM block in binary image is not a private key"
+                        .to_string(),
+                }],
+                file_path: rel_path.to_string(),
+                line_number: None,
+                byte_offset: start as u64,
+                evidence: "public certificate/key = [SUPPRESSED]".to_string(),
+            });
         }
     }
 

@@ -324,6 +324,7 @@ fn build_scan_options(args: &ScanArgs) -> Result<ScanOptions> {
         excluded_output_path: args.output.clone(),
         enable_binwalk: args.binwalk,
         binwalk_image: args.binwalk_image.clone(),
+        scan_binary_image_payload: !args.binwalk,
     })
 }
 

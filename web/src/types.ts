@@ -10,6 +10,7 @@ export type InputKind =
   | "directory"
   | "tar_archive"
   | "tar_gz_archive"
+  | "zip_archive"
   | "binary_image";
 
 export type IngestionOutcome =

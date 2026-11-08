@@ -61,6 +61,7 @@ pub enum InputKind {
     Directory,
     TarArchive,
     TarGzArchive,
+    ZipArchive,
     BinaryImage,
 }
 

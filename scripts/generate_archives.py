@@ -11,6 +11,7 @@ from __future__ import annotations
 import gzip
 import io
 import tarfile
+import zipfile
 import zlib
 from pathlib import Path
 
@@ -243,6 +244,30 @@ def generate_iot_hardware_bundles() -> None:
         "usr/share/ota/version.txt": b"fw_version=2.4.1-ota\nhw_rev=hi3516dv300\n",
     }
     build_virtual_tar_gz(ipcam_ota_files, GENERATED_ROOT / "smart-ipcam-ota.tar.gz")
+
+    # Also build a standard vendor .zip firmware bundle (smart-ipcam-v1.zip)
+    zip_path = GENERATED_ROOT / "smart-ipcam-v1.zip"
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for rel_posix in sorted(ipcam_ota_files.keys()):
+            zinfo = zipfile.ZipInfo(filename=rel_posix, date_time=(2026, 11, 8, 12, 0, 0))
+            zinfo.compress_type = zipfile.ZIP_DEFLATED
+            zinfo.external_attr = (0o100644 & 0xFFFF) << 16
+            zf.writestr(zinfo, ipcam_ota_files[rel_posix])
+
+    # Build a synthetic vendor .bin firmware image with embedded config/credentials (router-ota-image.bin)
+    router_bin_payload = (
+        b"FIRMLENS_ROUTER_OTA_BIN_HEADER_V1\x00"
+        b"board=ath79-generic-router\x00"
+        b"admin_password=SynthBinRouterAdmin99!Invalid\x00"
+        b"mqtt_password=SynthBinMqttSecret42\x00"
+        b"api_token=fl_synth_bin_tok_112233445566\x00"
+        b"wifi_password=${RUNTIME_WIFI_PSK}\x00"
+        b"-----BEGIN EC PRIVATE KEY-----\n"
+        b"MHcCAQEEISyntheticNonFunctionalRouterBinPrivateKeyMaterialForTest\n"
+        b"-----END EC PRIVATE KEY-----\x00"
+    )
+    (GENERATED_ROOT / "router-ota-image.bin").write_bytes(router_bin_payload)
 
 
 def main() -> None:

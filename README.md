@@ -19,7 +19,7 @@
 
 ---
 
-**FirmLens** is a deterministic static security analysis toolkit designed to detect hardcoded credentials, exposed cryptographic keys, and unsafe network/cloud configurations inside **IoT and SmartHome firmware** (`unpacked rootfs directories`, `.tar`, `.tar.gz`, and `.tgz` archives).
+**FirmLens** is a deterministic static security analysis toolkit designed to detect hardcoded credentials, exposed cryptographic keys, and unsafe network/cloud configurations inside **IoT and SmartHome firmware** (`unpacked rootfs directories`, `.tar`, `.tar.gz`, `.tgz`, `.zip` archives, and `.bin` / `.img` / `.fw` / `.chk` / `.pat` binary images).
 
 Built as an MSc cybersecurity research platform, FirmLens combines an independent **Rust analysis engine (`firmlens-core`)**, a **command-line interface (`firmlens-cli`)**, an optional **isolated Docker Binwalk v3 signature identifier**, and a **local Web Application (`firmlens-api` + `web/`)** with bilingual (`EN` / `PL`) support and SonarQube-style configuration inspection.
 
@@ -71,9 +71,11 @@ python3 scripts/task.py dev
 ```
 *(Or simply run `make dev` on Linux/macOS).*
 
-Then open **http://127.0.0.1:5173** in your browser and upload archives from `generated-fixtures/`:
+Then open **http://127.0.0.1:5173** in your browser and upload archives or binary images from `generated-fixtures/`:
 - `generated-fixtures/rpi4-smarthome-hub-v1.tar.gz` (Vulnerable SmartHome hub)
 - `generated-fixtures/rpi4-smarthome-hub-v2-hardened.tar.gz` (Hardened release for Version Diff)
+- `generated-fixtures/smart-ipcam-v1.zip` (Vendor `.zip` firmware archive)
+- `generated-fixtures/router-ota-image.bin` (Binary `.bin` OTA firmware image)
 - `generated-fixtures/vulnerable.tar`, `generated-fixtures/hardened.tar.gz`, `generated-fixtures/benign.tar`
 
 ---

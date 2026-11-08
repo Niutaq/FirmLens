@@ -3,7 +3,7 @@ use crate::model::{
     ExtractionCounters, IngestionLimits, IngestionOutcome, IngestionProvenance, InputKind,
     SkippedEntry,
 };
-use flate2::read::GzDecoder;
+use flate2::read::{DeflateDecoder, GzDecoder};
 use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -123,6 +123,8 @@ pub fn classify_input(path: &Path) -> Result<InputKind, FirmLensError> {
 
     let has_gzip_magic = n >= 2 && header[0] == 0x1f && header[1] == 0x8b;
     let has_ustar_magic = n >= 262 && &header[257..262] == b"ustar";
+    let has_zip_magic =
+        n >= 4 && (&header[0..4] == b"PK\x03\x04" || &header[0..4] == b"PK\x05\x06");
 
     if file_name.ends_with(".tar.gz") || file_name.ends_with(".tgz") || has_gzip_magic {
         return Ok(InputKind::TarGzArchive);
@@ -130,6 +132,10 @@ pub fn classify_input(path: &Path) -> Result<InputKind, FirmLensError> {
 
     if file_name.ends_with(".tar") || has_ustar_magic {
         return Ok(InputKind::TarArchive);
+    }
+
+    if file_name.ends_with(".zip") || has_zip_magic {
+        return Ok(InputKind::ZipArchive);
     }
 
     Ok(InputKind::BinaryImage)
@@ -213,9 +219,10 @@ fn is_nested_archive_name(path: &Path) -> bool {
         || lower.ends_with(".tar.gz")
         || lower.ends_with(".tgz")
         || lower.ends_with(".gz")
+        || lower.ends_with(".zip")
 }
 
-/// Ingest an input artifact (directory, TAR, TAR.GZ, or binary image) under strict security boundaries.
+/// Ingest an input artifact (directory, TAR, TAR.GZ, ZIP, or binary image) under strict security boundaries.
 pub fn ingest_input(
     input_path: &Path,
     limits: &IngestionLimits,
@@ -248,7 +255,7 @@ pub fn ingest_input(
                 ingestion_limits: limits.clone(),
                 counters: ExtractionCounters::default(),
                 rejection_reason: Some(
-                    "arbitrary firmware filesystem extraction is disabled; only directories and bounded TAR/TAR.GZ archives are extracted".to_string(),
+                    "arbitrary firmware filesystem extraction is disabled; only directories and bounded TAR/TAR.GZ/ZIP archives are extracted".to_string(),
                 ),
                 cleanup_verified: true,
             },
@@ -259,6 +266,7 @@ pub fn ingest_input(
         InputKind::TarArchive | InputKind::TarGzArchive => {
             extract_bounded_tar(input_path, kind, limits)
         }
+        InputKind::ZipArchive => extract_bounded_zip(input_path, limits),
     }
 }
 
@@ -565,6 +573,356 @@ fn unpack_tar_stream<R: Read>(
     }
 
     counters.expanded_stream_bytes = archive.into_inner().bytes_read();
+    Ok(())
+}
+
+fn read_u16_le(buf: &[u8], offset: usize) -> Option<u16> {
+    let bytes: [u8; 2] = buf.get(offset..offset + 2)?.try_into().ok()?;
+    Some(u16::from_le_bytes(bytes))
+}
+
+fn read_u32_le(buf: &[u8], offset: usize) -> Option<u32> {
+    let bytes: [u8; 4] = buf.get(offset..offset + 4)?.try_into().ok()?;
+    Some(u32::from_le_bytes(bytes))
+}
+
+fn find_zip_eocd(buf: &[u8]) -> Option<usize> {
+    if buf.len() < 22 {
+        return None;
+    }
+    let min_pos = buf.len().saturating_sub(22 + 65535);
+    for pos in (min_pos..=buf.len() - 22).rev() {
+        if &buf[pos..pos + 4] == b"PK\x05\x06" {
+            let comment_len = read_u16_le(buf, pos + 20)? as usize;
+            if pos + 22 + comment_len == buf.len() {
+                return Some(pos);
+            }
+        }
+    }
+    None
+}
+
+fn extract_bounded_zip(
+    input_path: &Path,
+    limits: &IngestionLimits,
+) -> Result<StagedIngestion, FirmLensError> {
+    let started_at = Instant::now();
+    let timeout = Duration::from_millis(limits.ingestion_timeout_ms);
+
+    let meta = fs::symlink_metadata(input_path).map_err(|e| FirmLensError::Io {
+        path: input_path.to_path_buf(),
+        reason: e.to_string(),
+    })?;
+
+    if meta.len() > limits.max_input_bytes {
+        return Ok(rejected_archive_stage(
+            InputKind::ZipArchive,
+            limits,
+            ExtractionCounters {
+                input_bytes_read: meta.len(),
+                ..ExtractionCounters::default()
+            },
+            format!(
+                "input_size_exceeded: archive size ({} bytes) exceeds max_input_bytes ({} bytes)",
+                meta.len(),
+                limits.max_input_bytes
+            ),
+            true,
+        ));
+    }
+
+    let temp_dir = tempfile::Builder::new()
+        .prefix("firmlens-stage-zip-")
+        .tempdir()
+        .map_err(|e| FirmLensError::Io {
+            path: input_path.to_path_buf(),
+            reason: format!("failed to create staging workspace: {e}"),
+        })?;
+
+    let mut counters = ExtractionCounters::default();
+    let mut ingestion_skips = Vec::new();
+
+    let file = File::open(input_path).map_err(|e| FirmLensError::Io {
+        path: input_path.to_path_buf(),
+        reason: e.to_string(),
+    })?;
+
+    let mut bounded_file = BoundedReader::new(
+        file,
+        limits.max_input_bytes,
+        "max_input_bytes_exceeded",
+        started_at,
+        timeout,
+    );
+
+    let mut zip_bytes = Vec::with_capacity(meta.len() as usize);
+    let read_res = bounded_file.read_to_end(&mut zip_bytes);
+    counters.input_bytes_read = bounded_file.bytes_read();
+
+    let extraction_result = match read_res {
+        Ok(_) => unpack_zip_bytes(
+            &zip_bytes,
+            temp_dir.path(),
+            limits,
+            started_at,
+            timeout,
+            &mut counters,
+            &mut ingestion_skips,
+        ),
+        Err(e) => Err(format!("zip_read_failed: {e}")),
+    };
+
+    match extraction_result {
+        Ok(()) => Ok(StagedIngestion {
+            provenance: IngestionProvenance {
+                input_kind: InputKind::ZipArchive,
+                outcome: IngestionOutcome::ArchiveExtracted,
+                ingestion_limits: limits.clone(),
+                counters,
+                rejection_reason: None,
+                cleanup_verified: false,
+            },
+            scan_root: Some(temp_dir.path().to_path_buf()),
+            temp_workspace: Some(temp_dir),
+            ingestion_skips,
+        }),
+        Err(reason) => {
+            let cleanup_ok = temp_dir.close().is_ok();
+            Ok(rejected_archive_stage(
+                InputKind::ZipArchive,
+                limits,
+                counters,
+                reason,
+                cleanup_ok,
+            ))
+        }
+    }
+}
+
+fn unpack_zip_bytes(
+    buf: &[u8],
+    staging_root: &Path,
+    limits: &IngestionLimits,
+    started_at: Instant,
+    timeout: Duration,
+    counters: &mut ExtractionCounters,
+    ingestion_skips: &mut Vec<SkippedEntry>,
+) -> Result<(), String> {
+    let eocd_pos = find_zip_eocd(buf).ok_or_else(|| {
+        "corrupt_zip_stream: End of Central Directory (EOCD) not found".to_string()
+    })?;
+
+    let total_entries = read_u16_le(buf, eocd_pos + 10)
+        .ok_or_else(|| "corrupt_zip_stream: invalid EOCD entry count".to_string())?
+        as usize;
+    let cd_size = read_u32_le(buf, eocd_pos + 12)
+        .ok_or_else(|| "corrupt_zip_stream: invalid central directory size".to_string())?
+        as usize;
+    let cd_offset = read_u32_le(buf, eocd_pos + 16)
+        .ok_or_else(|| "corrupt_zip_stream: invalid central directory offset".to_string())?
+        as usize;
+
+    if cd_offset.saturating_add(cd_size) > eocd_pos {
+        return Err("corrupt_zip_stream: central directory bounds exceed EOCD offset".to_string());
+    }
+
+    let mut seen_paths_lower = BTreeSet::new();
+    let mut created_files = BTreeSet::new();
+    let mut cursor = cd_offset;
+    let cd_end = cd_offset + cd_size;
+
+    for _ in 0..total_entries {
+        if started_at.elapsed() > timeout {
+            return Err(format!(
+                "ingestion_timeout: cooperative deadline of {} ms exceeded",
+                limits.ingestion_timeout_ms
+            ));
+        }
+
+        if cursor + 46 > cd_end || &buf[cursor..cursor + 4] != b"PK\x01\x02" {
+            return Err(
+                "corrupt_zip_stream: invalid Central Directory header signature".to_string(),
+            );
+        }
+
+        counters.archive_entries_seen += 1;
+        if counters.archive_entries_seen > limits.max_archive_entries {
+            return Err(format!(
+                "max_archive_entries_exceeded: archive exceeds {} entries",
+                limits.max_archive_entries
+            ));
+        }
+
+        let version_made_by = read_u16_le(buf, cursor + 4).unwrap_or(0);
+        let os_made_by = version_made_by >> 8;
+        let flags = read_u16_le(buf, cursor + 8).unwrap_or(0);
+        if flags & 0x0001 != 0 {
+            return Err(
+                "encrypted_zip_rejected: encrypted ZIP entries are not supported".to_string(),
+            );
+        }
+
+        let method = read_u16_le(buf, cursor + 10).unwrap_or(0);
+        let comp_size = read_u32_le(buf, cursor + 20).unwrap_or(0) as usize;
+        let uncomp_size = read_u32_le(buf, cursor + 24).unwrap_or(0) as u64;
+        let name_len = read_u16_le(buf, cursor + 28).unwrap_or(0) as usize;
+        let extra_len = read_u16_le(buf, cursor + 30).unwrap_or(0) as usize;
+        let comment_len = read_u16_le(buf, cursor + 32).unwrap_or(0) as usize;
+        let external_attr = read_u32_le(buf, cursor + 38).unwrap_or(0);
+        let local_hdr_offset = read_u32_le(buf, cursor + 42).unwrap_or(0) as usize;
+
+        let name_end = cursor + 46 + name_len;
+        let entry_end = name_end + extra_len + comment_len;
+        if entry_end > cd_end {
+            return Err("corrupt_zip_stream: central directory entry truncated".to_string());
+        }
+
+        let raw_name_cow = String::from_utf8_lossy(&buf[cursor + 46..name_end]);
+        let normalized_sep = raw_name_cow.replace('\\', "/");
+        cursor = entry_end;
+
+        // Check UNIX mode in upper 16 bits of external_attr only when created by UNIX (os_made_by == 3)
+        let unix_mode = if os_made_by == 3 {
+            (external_attr >> 16) & 0o170000
+        } else {
+            0
+        };
+        if unix_mode == 0o120000 {
+            return Err(
+                "link_member_rejected: ZIP archive contains forbidden symbolic link".to_string(),
+            );
+        }
+        if unix_mode != 0 && unix_mode != 0o100000 && unix_mode != 0o040000 {
+            return Err(format!(
+                "special_member_rejected: unsupported UNIX file mode in ZIP ({unix_mode:#o})"
+            ));
+        }
+
+        let is_dos_dir = (os_made_by == 0 || os_made_by == 10) && (external_attr & 0x10 != 0);
+        let is_dir = normalized_sep.ends_with('/') || unix_mode == 0o040000 || is_dos_dir;
+        let clean_raw = normalized_sep.trim_end_matches('/');
+        if clean_raw.is_empty() || clean_raw == "." {
+            continue;
+        }
+
+        let raw_path = Path::new(clean_raw);
+        let rel_path = validate_archive_member_path(raw_path, limits.max_extraction_depth)
+            .map_err(|e| e.to_string())?;
+        let rel_display = rel_path.to_string_lossy().replace('\\', "/");
+        let lower_key = rel_display.to_ascii_lowercase();
+        let dest_path = staging_root.join(&rel_path);
+
+        if is_dir {
+            if created_files.contains(&lower_key) {
+                return Err(format!(
+                    "conflicting_member_path: directory '{rel_display}' conflicts with an existing file"
+                ));
+            }
+            fs::create_dir_all(&dest_path)
+                .map_err(|e| format!("mkdir_failed for '{rel_display}': {e}"))?;
+            counters.extracted_directories += 1;
+            continue;
+        }
+
+        if uncomp_size > limits.max_member_bytes {
+            return Err(format!(
+                "max_member_bytes_exceeded: member '{}' size ({} bytes) exceeds limit ({} bytes)",
+                rel_display, uncomp_size, limits.max_member_bytes
+            ));
+        }
+
+        if !seen_paths_lower.insert(lower_key.clone()) {
+            return Err(format!(
+                "duplicate_or_aliased_member: '{rel_display}' collides with an earlier archive entry"
+            ));
+        }
+
+        counters.extracted_files += 1;
+        if counters.extracted_files > limits.max_extracted_files {
+            return Err(format!(
+                "max_extracted_files_exceeded: archive exceeds {} regular files",
+                limits.max_extracted_files
+            ));
+        }
+
+        // Validate Local File Header at local_hdr_offset
+        if local_hdr_offset + 30 > buf.len()
+            || &buf[local_hdr_offset..local_hdr_offset + 4] != b"PK\x03\x04"
+        {
+            return Err(format!(
+                "corrupt_zip_stream: invalid Local File Header for '{rel_display}'"
+            ));
+        }
+        let l_name_len = read_u16_le(buf, local_hdr_offset + 26).unwrap_or(0) as usize;
+        let l_extra_len = read_u16_le(buf, local_hdr_offset + 28).unwrap_or(0) as usize;
+        let data_start = local_hdr_offset + 30 + l_name_len + l_extra_len;
+        let data_end = data_start.saturating_add(comp_size);
+        if data_end > buf.len() {
+            return Err(format!(
+                "corrupt_zip_stream: compressed data bounds out of range for '{rel_display}'"
+            ));
+        }
+        let comp_slice = &buf[data_start..data_end];
+
+        if let Some(parent) = dest_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("parent_mkdir_failed for '{rel_display}': {e}"))?;
+        }
+
+        let mut out_file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&dest_path)
+            .map_err(|e| format!("create_file_failed for '{rel_display}': {e}"))?;
+
+        let remaining_expanded = limits
+            .max_expanded_bytes
+            .saturating_sub(counters.expanded_stream_bytes);
+        let effective_cap = limits.max_member_bytes.min(remaining_expanded);
+        let limit_code = if remaining_expanded < limits.max_member_bytes {
+            "max_expanded_bytes_exceeded"
+        } else {
+            "max_member_bytes_exceeded"
+        };
+
+        let bytes_written = match method {
+            0 => {
+                let mut reader =
+                    BoundedReader::new(comp_slice, effective_cap, limit_code, started_at, timeout);
+                io::copy(&mut reader, &mut out_file)
+                    .map_err(|e| format!("member_write_failed for '{rel_display}': {e}"))?
+            }
+            8 => {
+                let decoder = DeflateDecoder::new(comp_slice);
+                let mut reader =
+                    BoundedReader::new(decoder, effective_cap, limit_code, started_at, timeout);
+                io::copy(&mut reader, &mut out_file)
+                    .map_err(|e| format!("member_write_failed for '{rel_display}': {e}"))?
+            }
+            other => {
+                return Err(format!(
+                    "unsupported_zip_method: compression method {other} in '{rel_display}' is not supported (only Stored=0 and Deflate=8)"
+                ));
+            }
+        };
+
+        out_file
+            .flush()
+            .map_err(|e| format!("member_flush_failed for '{rel_display}': {e}"))?;
+
+        counters.expanded_stream_bytes =
+            counters.expanded_stream_bytes.saturating_add(bytes_written);
+        created_files.insert(lower_key);
+
+        if is_nested_archive_name(&rel_path) {
+            counters.nested_archives_detected += 1;
+            ingestion_skips.push(SkippedEntry {
+                path: rel_display,
+                reason: "nested_archive_not_expanded".to_string(),
+            });
+        }
+    }
+
     Ok(())
 }
 
