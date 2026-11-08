@@ -31,7 +31,7 @@ Built as an MSc cybersecurity research platform, FirmLens combines an independen
 ## Application Preview
 
 <p align="center">
-  <img src="docs/assets/dashboard-preview.svg" alt="FirmLens Web Dashboard Screenshot" width="100%" />
+  <img src="docs/assets/dashboard-preview.jpg" alt="FirmLens Web Dashboard Screenshot" width="100%" />
 </p>
 
 * **Top Command Deck & Mouse 4/5 Navigation:** Full-width navigation dock (`Dashboard`, `Findings`, `Files & Config`, `Version Diff`) synchronized with browser history (`Back` / `Forward`).
