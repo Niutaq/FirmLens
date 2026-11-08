@@ -1,0 +1,50 @@
+{
+  "schema_version": "2.1",
+  "fixtures": {
+    "vulnerable": {
+      "actionable_findings": 12,
+      "informational_hints": 1,
+      "review_candidates": 0,
+      "suppressed_candidates": 5,
+      "skipped_entries": 1,
+      "partial": true,
+      "expected_exit_code": 2,
+      "expected_rules": [
+        "FL001",
+        "FL002",
+        "FL003",
+        "FL004",
+        "FL005",
+        "FL006",
+        "FL007",
+        "FL008",
+        "FL009",
+        "FL010",
+        "FL011",
+        "FL012"
+      ]
+    },
+    "hardened": {
+      "actionable_findings": 0,
+      "informational_hints": 0,
+      "review_candidates": 0,
+      "suppressed_candidates": 12,
+      "skipped_entries": 1,
+      "partial": true,
+      "expected_exit_code": 2,
+      "expected_rules": []
+    },
+    "benign": {
+      "actionable_findings": 0,
+      "informational_hints": 0,
+      "review_candidates": 1,
+      "suppressed_candidates": 6,
+      "skipped_entries": 0,
+      "partial": false,
+      "expected_exit_code": 0,
+      "expected_rules": [
+        "FL005"
+      ]
+    }
+  }
+}

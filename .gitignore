@@ -1,0 +1,13 @@
+/target/
+/.tooling/
+/reports/
+*.firmlens.json
+/report.json
+/generated-fixtures/
+/web/node_modules/
+/web/dist/
+/web/*.tsbuildinfo
+__pycache__/
+/web/test-results/
+/web/playwright-report/
+/dropzone/

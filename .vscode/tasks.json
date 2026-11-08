@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "FirmLens: Start Web App (API + UI)",
+      "type": "shell",
+      "command": "python3 scripts/task.py dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "FirmLens: Full Validation Suite (Rust + API + Web)",
+      "type": "shell",
+      "command": "python3 scripts/task.py check",
+      "problemMatcher": "$rustc",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "FirmLens: CLI Demo Scan (Fixtures & Archives)",
+      "type": "shell",
+      "command": "python3 scripts/task.py demo",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "FirmLens: Build & Run Isolated Binwalk (Docker)",
+      "type": "shell",
+      "command": "python3 scripts/task.py binwalk",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

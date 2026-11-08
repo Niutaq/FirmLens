@@ -1,0 +1,214 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 780" width="1440" height="780" role="img" aria-label="FirmLens Web Application Dashboard Preview">
+  <defs>
+    <linearGradient id="hdr-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#11141c"/>
+      <stop offset="100%" stop-color="#171b24"/>
+    </linearGradient>
+    <linearGradient id="upload-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2ce59b"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="card-shadow" x="-4%" y="-4%" width="108%" height="112%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.05"/>
+    </filter>
+    <path id="fl-blade-preview" d="M805 242 C520 310 172 520 172 770 C172 815 190 855 218 884 L560 884 C380 884 290 800 290 700 C290 540 520 360 805 242 Z"/>
+    <mask id="fl-gap-preview" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#FFFFFF"/>
+      <use href="#fl-blade-preview" fill="#000000" stroke="#000000" stroke-width="44" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+
+  <!-- Main App Background -->
+  <rect width="1440" height="780" rx="12" fill="#f5f7fb" stroke="#dce1eb" stroke-width="2"/>
+
+  <!-- Top Command Header -->
+  <rect width="1440" height="106" fill="url(#hdr-bg)"/>
+  <line x1="0" y1="58" x2="1440" y2="58" stroke="#252a36" stroke-width="1"/>
+  <line x1="0" y1="106" x2="1440" y2="106" stroke="#252a36" stroke-width="1"/>
+
+  <!-- Brand Logo + Title -->
+  <rect x="64" y="12" width="34" height="34" rx="9" fill="#f8fafc"/>
+  <g transform="translate(66, 14) scale(0.0293)">
+    <g mask="url(#fl-gap-preview)">
+      <polygon points="512,140 218,405 218,884 512,884" fill="#2A2F38"/>
+      <polygon points="512,140 805,405 805,884 512,884" fill="#121722"/>
+    </g>
+    <use href="#fl-blade-preview" fill="#08CE88"/>
+  </g>
+  <text x="110" y="35" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="16" font-weight="800" fill="#ffffff" letter-spacing="2.2">FIRMLENS</text>
+
+  <!-- Center Navigation Dock -->
+  <rect x="242" y="9" width="582" height="40" rx="11" fill="#1a1f2a" stroke="#2b3140" stroke-width="1"/>
+  <!-- Active Tab: DASHBOARD -->
+  <rect x="247" y="13" width="128" height="32" rx="8" fill="#183834" stroke="#246b56" stroke-width="1"/>
+  <text x="311" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" font-weight="700" fill="#2ce59b" letter-spacing="0.5">⊞  DASHBOARD</text>
+  <!-- Tab: FINDINGS -->
+  <text x="428" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" font-weight="700" fill="#9ca3af" letter-spacing="0.5">🛡  FINDINGS</text>
+  <rect x="474" y="20" width="22" height="18" rx="9" fill="#2c3240"/>
+  <text x="485" y="32.5" text-anchor="middle" font-family="ui-monospace, monospace" font-size="10.5" font-weight="700" fill="#e5e7eb">7</text>
+  <!-- Tab: FILES & CONFIG -->
+  <text x="580" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" font-weight="700" fill="#9ca3af" letter-spacing="0.5">&lt;/&gt;  FILES &amp; CONFIG</text>
+  <!-- Tab: VERSION DIFF -->
+  <text x="735" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" font-weight="700" fill="#9ca3af" letter-spacing="0.5">📊  VERSION DIFF</text>
+
+  <!-- Right Action Controls -->
+  <rect x="868" y="12" width="160" height="34" rx="8" fill="url(#upload-grad)"/>
+  <text x="948" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="800" fill="#06281e">+ Upload TAR / TAR.GZ</text>
+
+  <rect x="1038" y="12" width="166" height="34" rx="8" fill="#1f2430" stroke="#32394a" stroke-width="1"/>
+  <text x="1121" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" font-weight="700" fill="#e5e7eb">Security Standards &amp; CWE</text>
+
+  <rect x="1214" y="12" width="66" height="34" rx="8" fill="#171b24" stroke="#32394a" stroke-width="1"/>
+  <rect x="1217" y="15" width="30" height="28" rx="6" fill="#2ce59b"/>
+  <text x="1232" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" fill="#06281e">EN</text>
+  <text x="1262" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="800" fill="#9ca3af">PL</text>
+
+  <rect x="1290" y="12" width="88" height="34" rx="8" fill="#1f2430" stroke="#32394a" stroke-width="1"/>
+  <text x="1334" y="33" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" font-weight="700" fill="#e5e7eb">Export JSON</text>
+
+  <!-- Scans Ribbon -->
+  <text x="64" y="86" font-family="system-ui, -apple-system, sans-serif" font-size="10.5" font-weight="800" fill="#9ca3af" letter-spacing="0.8">LOADED SCANS: 2/8</text>
+
+  <!-- Scan Chip 1 (Selected) -->
+  <rect x="184" y="67" width="262" height="29" rx="7" fill="#182c2c" stroke="#2ce59b" stroke-width="1"/>
+  <circle cx="198" cy="81.5" r="4" fill="#2ce59b"/>
+  <text x="208" y="85.5" font-family="ui-monospace, monospace" font-size="11.5" font-weight="700" fill="#ffffff">benign.tar</text>
+  <text x="278" y="85.5" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#9ca3af">0 actionable · 6 suppressed   ×</text>
+
+  <!-- Scan Chip 2 -->
+  <rect x="456" y="67" width="366" height="29" rx="7" fill="#1d222d" stroke="#2e3545" stroke-width="1"/>
+  <circle cx="470" cy="81.5" r="4" fill="#ff5c77"/>
+  <text x="480" y="85.5" font-family="ui-monospace, monospace" font-size="11.5" font-weight="700" fill="#e5e7eb">rpi4-smarthome-hub-v1.tar.gz</text>
+  <text x="658" y="85.5" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#9ca3af">10 actionable · 2 suppressed   ×</text>
+
+  <!-- Workspace Content Header -->
+  <text x="64" y="150" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#111827">benign.tar</text>
+  <text x="1376" y="148" text-anchor="end" font-family="ui-monospace, monospace" font-size="12" fill="#6b7280">1 ms</text>
+
+  <!-- Full Scoped Coverage Banner -->
+  <rect x="64" y="168" width="1312" height="44" rx="10" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1"/>
+  <text x="82" y="195" font-family="system-ui, -apple-system, sans-serif" font-size="13.5" font-weight="800" fill="#065f46">Full Scoped Coverage:</text>
+  <text x="235" y="195" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#047857">All in-scope files were analyzed within configured resource budgets.</text>
+
+  <!-- 4 KPI Cards Row -->
+  <!-- Card 1: Actionable -->
+  <g filter="url(#card-shadow)">
+    <rect x="64" y="228" width="316" height="78" rx="12" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <path d="M64 236 C64 231 68 228 74 228 L370 228 C376 228 380 231 380 236" fill="none" stroke="#ff5c77" stroke-width="3.5"/>
+    <text x="84" y="264" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#111827">0</text>
+    <text x="84" y="286" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#6b7280">Actionable</text>
+  </g>
+
+  <!-- Card 2: Suppressed -->
+  <g filter="url(#card-shadow)">
+    <rect x="396" y="228" width="316" height="78" rx="12" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <path d="M396 236 C396 231 400 228 406 228 L702 228 C708 228 712 231 712 236" fill="none" stroke="#2ce59b" stroke-width="3.5"/>
+    <text x="416" y="264" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#111827">6</text>
+    <text x="416" y="286" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#6b7280">Suppressed</text>
+  </g>
+
+  <!-- Card 3: Review / Hint -->
+  <g filter="url(#card-shadow)">
+    <rect x="728" y="228" width="316" height="78" rx="12" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <path d="M728 236 C728 231 732 228 738 228 L1034 228 C1040 228 1044 231 1044 236" fill="none" stroke="#f59e0b" stroke-width="3.5"/>
+    <text x="748" y="264" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#111827">1</text>
+    <text x="748" y="286" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#6b7280">Review / Hint</text>
+  </g>
+
+  <!-- Card 4: Files Scanned -->
+  <g filter="url(#card-shadow)">
+    <rect x="1060" y="228" width="316" height="78" rx="12" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <path d="M1060 236 C1060 231 1064 228 1070 228 L1366 228 C1372 228 1376 231 1376 236" fill="none" stroke="#32d2f2" stroke-width="3.5"/>
+    <text x="1080" y="264" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#111827">3</text>
+    <text x="1080" y="286" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#6b7280">Files Scanned</text>
+  </g>
+
+  <!-- 3 Main Visual Cards Row -->
+  <!-- Card A: Security Posture Status Donut -->
+  <g filter="url(#card-shadow)">
+    <rect x="64" y="324" width="424" height="310" rx="14" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="86" y="358" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="800" fill="#111827">Security Posture Status</text>
+
+    <!-- Donut Chart -->
+    <g transform="translate(276, 468)">
+      <circle cx="0" cy="0" r="54" fill="none" stroke="#e5e7eb" stroke-width="15"/>
+      <circle cx="0" cy="0" r="54" fill="none" stroke="#2ce59b" stroke-width="15" stroke-dasharray="290.8 339.3" transform="rotate(-90)"/>
+      <circle cx="0" cy="0" r="54" fill="none" stroke="#f59e0b" stroke-width="15" stroke-dasharray="48.5 339.3" stroke-dashoffset="-290.8" transform="rotate(-90)"/>
+      <text x="0" y="2" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" fill="#111827">7</text>
+      <text x="0" y="20" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" fill="#6b7280">Candidates</text>
+    </g>
+
+    <!-- Legend -->
+    <circle cx="122" cy="592" r="4" fill="#ff5c77"/>
+    <text x="132" y="596" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#4b5563">Actionable: <tspan font-weight="800" fill="#111827">0</tspan></text>
+
+    <circle cx="228" cy="592" r="4" fill="#2ce59b"/>
+    <text x="238" y="596" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#4b5563">Suppressed: <tspan font-weight="800" fill="#111827">6</tspan></text>
+
+    <circle cx="342" cy="592" r="4" fill="#f59e0b"/>
+    <text x="352" y="596" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#4b5563">Review / Hint: <tspan font-weight="800" fill="#111827">1</tspan></text>
+  </g>
+
+  <!-- Card B: Findings by IoT Vector -->
+  <g filter="url(#card-shadow)">
+    <rect x="508" y="324" width="424" height="310" rx="14" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="530" y="358" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="800" fill="#111827">Findings by IoT Vector</text>
+
+    <!-- Y-axis & grid -->
+    <text x="546" y="420" text-anchor="end" font-family="ui-monospace, monospace" font-size="11" fill="#9ca3af">8</text>
+    <line x1="560" y1="416" x2="900" y2="416" stroke="#f3f4f6" stroke-width="1"/>
+    <text x="546" y="488" text-anchor="end" font-family="ui-monospace, monospace" font-size="11" fill="#9ca3af">4</text>
+    <line x1="560" y1="484" x2="900" y2="484" stroke="#f3f4f6" stroke-width="1"/>
+    <text x="546" y="556" text-anchor="end" font-family="ui-monospace, monospace" font-size="11" fill="#9ca3af">0</text>
+    <line x1="560" y1="552" x2="900" y2="552" stroke="#e5e7eb" stroke-width="1"/>
+
+    <!-- Bars -->
+    <!-- Auth -->
+    <rect x="582" y="524" width="32" height="28" rx="6" fill="#ff5c77"/>
+    <text x="598" y="542" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" font-weight="800" fill="#ffffff">1</text>
+    <text x="598" y="574" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" fill="#4b5563">Auth</text>
+
+    <!-- Cloud -->
+    <rect x="650" y="524" width="32" height="28" rx="6" fill="#6366f1"/>
+    <text x="666" y="542" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" font-weight="800" fill="#ffffff">0</text>
+    <text x="666" y="574" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" fill="#4b5563">Cloud</text>
+
+    <!-- TLS/Key -->
+    <rect x="718" y="524" width="32" height="28" rx="6" fill="#f59e0b"/>
+    <text x="734" y="542" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" font-weight="800" fill="#ffffff">0</text>
+    <text x="734" y="574" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" fill="#4b5563">TLS/Key</text>
+
+    <!-- Net/URI -->
+    <rect x="786" y="524" width="32" height="28" rx="6" fill="#32d2f2"/>
+    <text x="802" y="542" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" font-weight="800" fill="#ffffff">0</text>
+    <text x="802" y="574" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" fill="#4b5563">Net/URI</text>
+
+    <!-- Safe -->
+    <rect x="854" y="446" width="32" height="106" rx="6" fill="#2ce59b"/>
+    <text x="870" y="542" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11" font-weight="800" fill="#ffffff">6</text>
+    <text x="870" y="574" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11.5" fill="#4b5563">Safe</text>
+  </g>
+
+  <!-- Card C: Selected Firmware Tree -->
+  <g filter="url(#card-shadow)">
+    <rect x="952" y="324" width="424" height="310" rx="14" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="974" y="358" font-family="system-ui, -apple-system, sans-serif" font-size="15" font-weight="800" fill="#111827">Selected Firmware Tree</text>
+    <rect x="1332" y="340" width="24" height="22" rx="6" fill="#eff6ff"/>
+    <text x="1344" y="355" text-anchor="middle" font-family="ui-monospace, monospace" font-size="11.5" font-weight="800" fill="#2563eb">3</text>
+
+    <!-- File 1 -->
+    <circle cx="984" cy="436" r="4" fill="#2ce59b"/>
+    <text x="996" y="440" font-family="ui-monospace, monospace" font-size="12.5" font-weight="600" fill="#1f2937">etc/network-defaults.conf</text>
+    <text x="1352" y="440" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#6b7280">Suppressed</text>
+
+    <!-- File 2 -->
+    <circle cx="984" cy="474" r="4" fill="#2ce59b"/>
+    <text x="996" y="478" font-family="ui-monospace, monospace" font-size="12.5" font-weight="600" fill="#1f2937">etc/tls/public-root.pem</text>
+    <text x="1352" y="478" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#6b7280">Suppressed</text>
+
+    <!-- File 3 -->
+    <circle cx="984" cy="512" r="4" fill="#2ce59b"/>
+    <text x="996" y="516" font-family="ui-monospace, monospace" font-size="12.5" font-weight="600" fill="#1f2937">var/cache/radio-cal.dat</text>
+    <text x="1352" y="516" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#6b7280">Scanned</text>
+  </g>
+</svg>
