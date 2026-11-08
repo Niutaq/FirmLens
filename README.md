@@ -13,11 +13,8 @@
   <img src="https://img.shields.io/badge/JSON_Schema-2.1-32d2f2?style=flat-square" alt="Schema 2.1" />
   <img src="https://img.shields.io/badge/Rust-Stable_(2021)-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust Stable" />
   <img src="https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" />
+  <img src="https://img.shields.io/badge/Platform-Linux_%7C_macOS_%7C_Windows-4b5563?style=flat-square" alt="Linux | macOS | Windows" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License" />
-</p>
-
-<p align="center">
-  <img src="docs/assets/firmlens.svg" alt="FirmLens Banner" width="800" />
 </p>
 
 ---

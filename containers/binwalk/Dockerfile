@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM rust:1.85-slim-bookworm AS builder
+FROM docker.io/library/rust:1.85-slim-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Pin exact Binwalk v3 release (3.1.0)
 RUN cargo install --locked binwalk --version 3.1.0 --root /usr/local
 
-FROM debian:bookworm-slim
+FROM docker.io/library/debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libfontconfig1 \
