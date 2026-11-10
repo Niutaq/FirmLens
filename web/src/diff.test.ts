@@ -10,6 +10,7 @@ import {
   RULE_CATALOG,
   UI_TEXT,
 } from "./i18n";
+import { displayFirmwarePath } from "./paths";
 import type { StoredScan } from "./types";
 
 function makeMockStoredScan(
@@ -148,5 +149,21 @@ describe("computeClientReportDiff", () => {
     assert.equal(formatSeverity("high", "pl"), "WYSOKIE");
     assert.equal(formatSuppressionReason("env_or_template_reference", "pl"), "Zmienna środowiskowa / Szablon");
     assert.equal(formatVectorLabel("auth", "pl"), "Autoryzacja");
+    assert.equal(formatVectorLabel("auth", "pl", { compact: true }), "Auth");
+    assert.equal(formatVectorLabel("safe", "pl", { compact: true }), "OK");
+  });
+
+  it("shortens binwalk-extracted firmware paths for UI labels", () => {
+    assert.equal(
+      displayFirmwarePath(
+        "DIR815A1_FW103b01.bin.extracted/F008C/squashfs-root/etc/services/INET/inet_ppp4.php",
+      ),
+      "etc/services/INET/inet_ppp4.php",
+    );
+    assert.equal(
+      displayFirmwarePath("DIR815A1_FW103b01.bin.extracted/6C/decompressed.bin"),
+      "decompressed.bin",
+    );
+    assert.equal(displayFirmwarePath("etc/gateway.conf"), "etc/gateway.conf");
   });
 });

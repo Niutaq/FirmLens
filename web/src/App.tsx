@@ -11,6 +11,7 @@ import {
   RULE_CATALOG,
   UI_TEXT,
 } from "./i18n";
+import { displayFirmwarePath } from "./paths";
 
 type ActiveTab = "overview" | "findings" | "files" | "diff";
 type FindingFilter = "all" | "actionable" | "review" | "hints" | "suppressed";
@@ -242,14 +243,45 @@ function VectorTasksBarCard({
   const items: Array<{
     key: "auth" | "cloud" | "tls" | "net" | "safe";
     label: string;
+    fullLabel: string;
     value: number;
     color: string;
   }> = [
-    { key: "auth", label: formatVectorLabel("auth", lang), value: counts.auth, color: "#ff5c77" },
-    { key: "cloud", label: formatVectorLabel("cloud", lang), value: counts.cloud, color: "#6366f1" },
-    { key: "tls", label: formatVectorLabel("tls", lang), value: counts.tls, color: "#f59e0b" },
-    { key: "net", label: formatVectorLabel("net", lang), value: counts.net, color: "#32d2f2" },
-    { key: "safe", label: formatVectorLabel("safe", lang), value: counts.safe, color: "#2ce59b" },
+    {
+      key: "auth",
+      label: formatVectorLabel("auth", lang, { compact: true }),
+      fullLabel: formatVectorLabel("auth", lang),
+      value: counts.auth,
+      color: "#ff5c77",
+    },
+    {
+      key: "cloud",
+      label: formatVectorLabel("cloud", lang, { compact: true }),
+      fullLabel: formatVectorLabel("cloud", lang),
+      value: counts.cloud,
+      color: "#6366f1",
+    },
+    {
+      key: "tls",
+      label: formatVectorLabel("tls", lang, { compact: true }),
+      fullLabel: formatVectorLabel("tls", lang),
+      value: counts.tls,
+      color: "#f59e0b",
+    },
+    {
+      key: "net",
+      label: formatVectorLabel("net", lang, { compact: true }),
+      fullLabel: formatVectorLabel("net", lang),
+      value: counts.net,
+      color: "#32d2f2",
+    },
+    {
+      key: "safe",
+      label: formatVectorLabel("safe", lang, { compact: true }),
+      fullLabel: formatVectorLabel("safe", lang),
+      value: counts.safe,
+      color: "#2ce59b",
+    },
   ];
 
   const maxScale = Math.max(8, ...items.map((i) => i.value));
@@ -274,7 +306,7 @@ function VectorTasksBarCard({
                 type="button"
                 className="bar-col bar-col-interactive"
                 onClick={() => onSelectVector(item.key)}
-                title={`${item.label}: ${item.value}`}
+                title={`${item.fullLabel}: ${item.value}`}
               >
                 <div
                   className="bar-fill"
@@ -323,22 +355,23 @@ function CompactFileTreeCard({
         {report.inventory.map((entry) => {
           const isVuln = entry.actionable_findings > 0;
           const isSkipped = entry.analysis_status !== "scanned";
+          const shortPath = displayFirmwarePath(entry.path);
+          const rightLabel = isVuln
+            ? `${entry.actionable_findings}`
+            : isSkipped
+              ? formatAnalysisStatus(entry.analysis_status, lang)
+              : entry.suppressed_candidates > 0
+                ? String(entry.suppressed_candidates)
+                : "";
           return (
             <button
               key={entry.path}
               type="button"
               className="inspector-tree-item"
               onClick={() => onSelectFile(entry.path)}
+              title={entry.path}
             >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.45rem",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
+              <span className="inspector-tree-path">
                 <span
                   className={`status-dot ${
                     isVuln
@@ -348,15 +381,11 @@ function CompactFileTreeCard({
                         : "status-dot-safe"
                   }`}
                 />
-                <span className="mono-path-text">{entry.path}</span>
+                <span className="mono-path-text">{shortPath}</span>
               </span>
-              <span style={{ color: "#6b7280", fontWeight: 700, fontSize: "0.72rem" }}>
-                {entry.actionable_findings > 0
-                  ? `${entry.actionable_findings}`
-                  : entry.suppressed_candidates > 0
-                    ? t.kpiSuppressed
-                    : formatAnalysisStatus(entry.analysis_status, lang)}
-              </span>
+              {rightLabel ? (
+                <span className="inspector-tree-meta">{rightLabel}</span>
+              ) : null}
             </button>
           );
         })}
@@ -437,7 +466,9 @@ function SonarCodeInspector({
               <polyline points="14 2 14 8 20 8" />
             </svg>
           </span>
-          <code className="sonar-file-path">{activePath}</code>
+          <code className="sonar-file-path" title={activePath}>
+            {displayFirmwarePath(activePath)}
+          </code>
           {fileMeta && (
             <>
               <span className="std-pill">{formatFileType(fileMeta.file_type, lang)}</span>
@@ -1256,8 +1287,8 @@ export function App() {
                                 }
                                 data-testid="inspect-in-file-btn"
                               >
-                                <span className="sonar-file-link-path">
-                                  {f.file_path}
+                                <span className="sonar-file-link-path" title={f.file_path}>
+                                  {displayFirmwarePath(f.file_path)}
                                   {f.line_number ? ` : ${t.lineLabel} ${f.line_number}` : ""}
                                 </span>
                                 <span className="sonar-file-link-cta">
@@ -1343,8 +1374,8 @@ export function App() {
                                   )
                                 }
                               >
-                                <span className="sonar-file-link-path">
-                                  {s.file_path}
+                                <span className="sonar-file-link-path" title={s.file_path}>
+                                  {displayFirmwarePath(s.file_path)}
                                   {s.line_number ? ` : ${t.lineLabel} ${s.line_number}` : ""}
                                 </span>
                                 <span className="sonar-file-link-cta">
@@ -1411,8 +1442,8 @@ export function App() {
                                   style={{ cursor: "pointer" }}
                                   onClick={() => handleOpenInFileInspector(entry.path)}
                                 >
-                                  <td className="path-cell">
-                                    <code>{entry.path}</code>
+                                  <td className="path-cell" title={entry.path}>
+                                    <code>{displayFirmwarePath(entry.path)}</code>
                                   </td>
                                   <td>{formatFileType(entry.file_type, lang)}</td>
                                   <td>{formatAnalysisStatus(entry.analysis_status, lang)}</td>
@@ -1527,8 +1558,8 @@ export function App() {
                         <div key={`res-${idx}`} className="finding-card">
                           <div className="finding-card-top">
                             <strong>{getProblemTitle(f.rule_id, f.category, lang)}</strong>
-                            <code>
-                              {f.file_path}
+                            <code title={f.file_path}>
+                              {displayFirmwarePath(f.file_path)}
                               {f.line_number ? `:${f.line_number}` : ""}
                             </code>
                           </div>

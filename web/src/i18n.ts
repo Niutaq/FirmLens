@@ -86,15 +86,24 @@ export function formatSuppressionReason(reason: string, lang: Locale): string {
 export function formatVectorLabel(
   key: "auth" | "cloud" | "tls" | "net" | "safe",
   lang: Locale,
+  options?: { compact?: boolean },
 ): string {
-  const map: Record<"auth" | "cloud" | "tls" | "net" | "safe", { en: string; pl: string }> = {
+  const full: Record<"auth" | "cloud" | "tls" | "net" | "safe", { en: string; pl: string }> = {
     auth: { en: "Auth", pl: "Autoryzacja" },
     cloud: { en: "Cloud", pl: "Chmura" },
     tls: { en: "TLS/Key", pl: "Klucze TLS" },
     net: { en: "Net/URI", pl: "Sieć / URI" },
     safe: { en: "Safe", pl: "Bezpieczne" },
   };
-  return map[key][lang];
+  // Compact axis labels avoid PL word collision on the overview bar chart.
+  const compact: Record<"auth" | "cloud" | "tls" | "net" | "safe", { en: string; pl: string }> = {
+    auth: { en: "Auth", pl: "Auth" },
+    cloud: { en: "Cloud", pl: "Chmura" },
+    tls: { en: "TLS", pl: "TLS" },
+    net: { en: "Net", pl: "Sieć" },
+    safe: { en: "Safe", pl: "OK" },
+  };
+  return (options?.compact ? compact : full)[key][lang];
 }
 
 export const RULE_CATALOG: Record<string, RuleLocalizedMeta> = {

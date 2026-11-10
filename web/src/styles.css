@@ -42,6 +42,10 @@ textarea {
 .mono-path-text {
   font-family: var(--font-mono);
   font-size: 0.74rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 /* Full-Width Top Navigation Layout */
@@ -430,7 +434,7 @@ textarea {
   display: grid;
   grid-template-columns: 24px 1fr;
   gap: 0.5rem;
-  height: 165px;
+  height: 175px;
   align-items: stretch;
   padding-top: 0.35rem;
 }
@@ -442,17 +446,18 @@ textarea {
   font-size: 0.68rem;
   color: #9ca3af;
   text-align: right;
-  padding-bottom: 22px;
+  padding-bottom: 28px;
 }
 
 .bars-plot {
   position: relative;
   display: flex;
   align-items: flex-end;
-  justify-content: space-around;
+  justify-content: space-between;
+  gap: 0.25rem;
   border-bottom: 1px solid #e5e7eb;
-  padding: 0 0.4rem;
-  height: calc(100% - 22px);
+  padding: 0 0.15rem;
+  height: calc(100% - 28px);
   background-image: linear-gradient(to bottom, #f3f4f6 1px, transparent 1px);
   background-size: 100% 25%;
 }
@@ -463,12 +468,14 @@ textarea {
   align-items: center;
   justify-content: flex-end;
   height: 100%;
-  width: 38px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 56px;
   position: relative;
 }
 
 .bar-fill {
-  width: 28px;
+  width: min(28px, 70%);
   border-radius: 3px 3px 0 0;
   display: flex;
   align-items: flex-end;
@@ -482,16 +489,23 @@ textarea {
 
 .bar-x-label {
   position: absolute;
-  bottom: -20px;
-  font-size: 0.68rem;
+  bottom: -24px;
+  left: 0;
+  right: 0;
+  font-size: 0.64rem;
+  line-height: 1.15;
   color: var(--text-secondary);
+  text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .inspector-tree-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.55rem;
   padding: 0.4rem 0.55rem;
   border-radius: 5px;
   font-size: 0.75rem;
@@ -500,7 +514,25 @@ textarea {
   border: none;
   background: transparent;
   width: 100%;
+  min-width: 0;
   text-align: left;
+}
+
+.inspector-tree-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.inspector-tree-meta {
+  flex: 0 0 auto;
+  color: #6b7280;
+  font-weight: 700;
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 .inspector-tree-item:hover {
@@ -699,6 +731,11 @@ textarea {
 .sonar-file-link-path {
   font-family: var(--font-mono);
   font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(42rem, 70vw);
 }
 
 .sonar-file-link-cta {
@@ -805,6 +842,12 @@ textarea {
   background: #e2e8f0;
   color: #0f172a;
   padding: 0.18rem 0.5rem;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .sonar-code-viewport {
