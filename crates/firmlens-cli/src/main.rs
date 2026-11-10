@@ -121,7 +121,11 @@ struct ScanArgs {
     #[arg(long)]
     pub binwalk: bool,
 
-    /// Override trusted local Docker image or digest for Binwalk v3 identification
+    /// Unpack binary firmware images via isolated Binwalk (`--extract --matryoshka`) then scan the tree
+    #[arg(long)]
+    pub binwalk_extract: bool,
+
+    /// Override trusted local Docker image or digest for Binwalk v3 identification/extraction
     #[arg(long)]
     pub binwalk_image: Option<String>,
 }
@@ -322,9 +326,11 @@ fn build_scan_options(args: &ScanArgs) -> Result<ScanOptions> {
         scan_limits,
         ingestion_limits,
         excluded_output_path: args.output.clone(),
-        enable_binwalk: args.binwalk,
+        enable_binwalk: args.binwalk || args.binwalk_extract,
+        enable_binwalk_extract: args.binwalk_extract,
         binwalk_image: args.binwalk_image.clone(),
-        scan_binary_image_payload: !args.binwalk,
+        // Prefer extracted trees; keep raw binary payload scan only when unpacking is not requested.
+        scan_binary_image_payload: !args.binwalk && !args.binwalk_extract,
     })
 }
 

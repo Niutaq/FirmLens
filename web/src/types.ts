@@ -16,6 +16,7 @@ export type InputKind =
 export type IngestionOutcome =
   | "directory_scanned"
   | "archive_extracted"
+  | "image_extracted"
   | "rejected_archive"
   | "unsupported_image";
 

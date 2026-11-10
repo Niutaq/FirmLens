@@ -692,17 +692,23 @@ async fn upload_and_scan(
         .max_input_bytes
         .min(state.config.max_upload_bytes);
 
+    // Give isolated Binwalk unpack enough wall-clock budget without blocking the Tokio runtime
+    // (analysis runs on spawn_blocking below).
+    ingestion_limits.ingestion_timeout_ms = ingestion_limits.ingestion_timeout_ms.max(180_000);
+
     let scan_opts = ScanOptions {
         scan_limits: state.config.scan_limits.clone(),
         ingestion_limits,
         excluded_output_path: None,
-        // Optional Docker Binwalk identification remains CLI-only
-        enable_binwalk: false,
+        enable_binwalk: true,
+        enable_binwalk_extract: true,
         binwalk_image: None,
+        // Fallback when Docker/Binwalk image is unavailable: bounded raw binary string scan.
         scan_binary_image_payload: true,
     };
 
     let display_name = sanitized_name.clone();
+    // Two-stage unpack+scan is CPU/IO heavy; never run it on the async reactor thread.
     let scan_result = tokio::task::spawn_blocking(move || {
         let path: &Path = temp_archive.path();
         let res = scan_path(path, &scan_opts);
@@ -727,20 +733,52 @@ async fn upload_and_scan(
         )
     })?;
 
-    // Never leak server temporary paths in metadata.root or standalone binary file entries
+    // Never leak server temporary paths in metadata.root. For extracted firmware images,
+    // keep relative paths inside the unpacked tree (rewrite only the staged `firmware.bin`
+    // prefix to the uploaded display name). Collapse to the upload name only for raw
+    // binary-payload scans that never produced a filesystem tree.
     report.metadata.root = display_name.clone();
     if report.ingestion.input_kind == InputKind::BinaryImage {
-        for f in &mut report.findings {
-            f.file_path = display_name.clone();
-        }
-        for s in &mut report.suppressed {
-            s.file_path = display_name.clone();
-        }
-        for inv in &mut report.inventory {
-            inv.path = display_name.clone();
-        }
-        for sk in &mut report.skipped_files {
-            sk.path = display_name.clone();
+        if report.ingestion.outcome == IngestionOutcome::ImageExtracted {
+            let rewrite = |path: &str| -> String {
+                if let Some(rest) = path.strip_prefix("firmware.bin") {
+                    format!("{display_name}{rest}")
+                } else if path == "firmware.bin" {
+                    display_name.clone()
+                } else {
+                    path.to_string()
+                }
+            };
+            for f in &mut report.findings {
+                f.file_path = rewrite(&f.file_path);
+            }
+            for s in &mut report.suppressed {
+                s.file_path = rewrite(&s.file_path);
+            }
+            for inv in &mut report.inventory {
+                inv.path = rewrite(&inv.path);
+            }
+            for sk in &mut report.skipped_files {
+                sk.path = rewrite(&sk.path);
+            }
+            for err in &mut report.errors {
+                if err.path != "<staging_workspace>" && err.path != "<unknown>" {
+                    err.path = rewrite(&err.path);
+                }
+            }
+        } else {
+            for f in &mut report.findings {
+                f.file_path = display_name.clone();
+            }
+            for s in &mut report.suppressed {
+                s.file_path = display_name.clone();
+            }
+            for inv in &mut report.inventory {
+                inv.path = display_name.clone();
+            }
+            for sk in &mut report.skipped_files {
+                sk.path = display_name.clone();
+            }
         }
     }
 

@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Initial_Demo-08CE88?style=flat-square" alt="Initial Demo" />
-  <img src="https://img.shields.io/badge/JSON_Schema-2.1-32d2f2?style=flat-square" alt="Schema 2.1" />
+  <img src="https://img.shields.io/badge/JSON_Schema-2.2-32d2f2?style=flat-square" alt="Schema 2.2" />
   <img src="https://img.shields.io/badge/Rust-Stable_(2021)-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust Stable" />
   <img src="https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" />
   <img src="https://img.shields.io/badge/Platform-Linux_%7C_macOS_%7C_Windows-4b5563?style=flat-square" alt="Linux | macOS | Windows" />
@@ -51,7 +51,7 @@ Built as an MSc cybersecurity research platform, FirmLens combines an independen
 | **CLI Adapter** | ![Terminal](https://img.shields.io/badge/Clap_CLI-4EAA25?style=flat-square&logo=gnubash&logoColor=white) `firmlens-cli` (`clap`) | `4.5` | Deterministic command-line interface, terminal/JSON formatting, safe `--output` creation (`create_new`), and exit code semantics (`0/1/2/3`). |
 | **Local HTTP API** | ![Axum](https://img.shields.io/badge/Axum_&_Tokio-0f172a?style=flat-square&logo=rust&logoColor=08CE88) `firmlens-api` | `0.8` / `1.0` | Loopback-only (`127.0.0.1:8787`) REST API with `Host`/`Origin` validation, bounded upload streaming (128 MiB), semaphore job control, and report diffing. |
 | **Web Frontend** | ![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) | `19.0` / `5.7` / `6.0` | Interactive SPA dashboard, Sonar-style config inspector, `EN/PL` localization, and client/server version diff visualization. |
-| **Binary Identification** | ![Docker](https://img.shields.io/badge/Docker_+_Binwalk_v3-2496ED?style=flat-square&logo=docker&logoColor=white) `containers/binwalk` | `3.1.0` | Optional sandboxed firmware signature identification running inside a network-disabled, read-only, capability-dropped container. |
+| **Binary Identification & Extraction** | ![Docker](https://img.shields.io/badge/Docker_+_Binwalk_v3-2496ED?style=flat-square&logo=docker&logoColor=white) `containers/binwalk` | `3.1.0` | Optional sandboxed signature identification and `--extract --matryoshka` unpacking inside a network-disabled, capability-dropped container (never a host binwalk fallback). |
 | **Automation & Testing** | ![Python](https://img.shields.io/badge/Python_3-3776AB?style=flat-square&logo=python&logoColor=white) ![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=flat-square&logo=playwright&logoColor=white) | `3.10+` / `1.50` | Synthetic firmware fixture generation, USB/dropzone auto-scanner (`usb_watch.py`), CLI/API parity verifier, and E2E browser tests. |
 
 ---
@@ -154,6 +154,8 @@ docker build -t firmlens-binwalk:3.1.0 containers/binwalk
 
 # Scan a binary image with isolated signature identification
 cargo run -p firmlens-cli -- scan generated-fixtures/signature-test.bin --binwalk --format json
+# Unpack opaque firmware images then scan the extracted tree (requires the same image):
+cargo run -p firmlens-cli -- scan generated-fixtures/router-ota-image.bin --binwalk-extract --format json
 ```
 
 > [!NOTE]
@@ -229,7 +231,7 @@ cd web && npm test && npm run typecheck && npm run build
 - [x] **Milestone 3 — CLI & Reproducible Fixture Corpus (`firmlens-cli`)**
   - Deterministic CLI output, exit codes `0/1/2/3`, synthetic `vulnerable`/`hardened`/`benign` ground-truth fixtures, and SmartHome Raspberry Pi 4 TAR.GZ bundles.
 - [x] **Milestone 4 — Sandboxed Binwalk v3 Integration (`containers/binwalk`)**
-  - Rootless/unprivileged Docker boundary for `binwalk 3.1.0` signature identification without host extraction risks.
+  - Rootless/unprivileged Docker boundary for `binwalk 3.1.0` signature identification and optional `--binwalk-extract` filesystem unpacking without unsandboxed host extraction.
 - [x] **Milestone 5 — Local Axum API & React 19 Workbench (`firmlens-api`, `web/`)**
   - Loopback REST API (`127.0.0.1:8787`), interactive Top Command Deck, Sonar-style Code Inspector, Version Diff view, `EN/PL` localization, and USB Auto-Scanner (`usb_watch.py`).
 - [ ] **Next Steps (Planned Research Directions)**

@@ -12,13 +12,13 @@
 - Neither `firmlens-api` nor `web/` duplicates detection logic; all reports come directly from `firmlens_core::scan_path`.
 
 ## HTTP Endpoints
-- `GET /api/health` — Server status, schema version (`2.1`), ruleset version (`2`), and active limits.
+- `GET /api/health` — Server status, schema version (`2.2`), ruleset version (`2`), and active limits.
 - `GET /api/rules` — Metadata for all 12 registered rules (`FL001`–`FL012`), including MITRE CWE, OWASP IoT Top 10, and ETSI EN 303 645 standard mappings.
 - `GET /api/scans` — Summary list of retained scans in memory (newest first).
 - `POST /api/scans?filename=<archive.tar.gz>` — Bounded binary stream (or `multipart/form-data`) upload and immediate analysis.
-- `GET /api/scans/{id}` — Full stored scan metadata and Schema 2.1 `ScanReport`.
+- `GET /api/scans/{id}` — Full stored scan metadata and Schema 2.2 `ScanReport`.
 - `DELETE /api/scans/{id}` — Remove a retained scan from memory.
-- `GET /api/scans/{id}/report` — Download the raw Schema 2.1 JSON report (`*.firmlens.json`).
+- `GET /api/scans/{id}/report` — Download the raw Schema 2.2 JSON report (`*.firmlens.json`).
 - `GET /api/diff?base={id1}&target={id2}` — Structural comparison between two retained scans, including explicit partial-coverage caveats.
 
 ## Interactive Web UI Features (`EN / PL`) & USB Auto-Scanner

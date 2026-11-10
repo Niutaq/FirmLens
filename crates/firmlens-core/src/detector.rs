@@ -55,7 +55,20 @@ pub fn classify_file_type(rel_path: &str, is_binary: bool) -> FileTypeClass {
     {
         return FileTypeClass::KeyOrCert;
     }
-    if lower.ends_with(".sh") || lower.ends_with(".init") || lower.contains("/init.d/") {
+    // Scripts before the broad `etc/` config heuristic so PHP/JS under /etc are not
+    // treated as static configuration files (major FP source on vendor firmwares).
+    if lower.ends_with(".sh")
+        || lower.ends_with(".init")
+        || lower.contains("/init.d/")
+        || lower.ends_with(".php")
+        || lower.ends_with(".js")
+        || lower.ends_with(".jsx")
+        || lower.ends_with(".ts")
+        || lower.ends_with(".tsx")
+        || lower.ends_with(".cgi")
+        || lower.ends_with(".asp")
+        || lower.ends_with(".aspx")
+    {
         return FileTypeClass::Script;
     }
     if lower.ends_with(".conf")
@@ -85,7 +98,37 @@ pub fn classify_file_type(rel_path: &str, is_binary: bool) -> FileTypeClass {
     FileTypeClass::Other
 }
 
-/// Strip inline `#` or `;` comments outside single or double quotes when preceded by whitespace.
+/// Sanitize a configuration key for public evidence strings.
+/// Keys are not secrets; values remain redacted. Reject control bytes and cap length.
+fn sanitized_config_key(key: &str) -> String {
+    let safe: String = key
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .take(128)
+        .collect();
+    if safe.is_empty() {
+        "setting".to_string()
+    } else {
+        safe
+    }
+}
+
+/// Public evidence for secret-bearing assignments: keep the real key, never the value.
+fn redacted_assignment_evidence(key: &str) -> String {
+    format!("{} = [REDACTED]", sanitized_config_key(key))
+}
+
+/// Public evidence for non-secret directive values (`disabled` / `enabled` / etc.).
+fn directive_evidence(key: &str, value_label: &str) -> String {
+    format!("{} = {value_label}", sanitized_config_key(key))
+}
+
 pub fn strip_inline_comment(line: &str) -> &str {
     let trimmed = line.trim_start();
     if trimmed.starts_with('#') || trimmed.starts_with(';') {
@@ -202,7 +245,8 @@ fn analyze_text_content(
         if let Some((raw_key, raw_val, val_delta)) = split_assignment(line_trimmed_newline, active)
         {
             let key_norm = normalize_key(raw_key);
-            let val_clean = unquote_value(raw_val.trim());
+            // Strip PHP/JS statement terminators before unquoting so `="";` becomes empty.
+            let val_clean = unquote_value(raw_val.trim().trim_end_matches(';').trim());
             let exact_offset = line_offset + val_delta as u64;
 
             evaluate_assignment(
@@ -368,9 +412,32 @@ fn inspect_pem_blocks_in_text(
 }
 
 fn split_assignment<'a>(raw_line: &'a str, active: &'a str) -> Option<(&'a str, &'a str, usize)> {
-    // Find '=' or ':' outside quotes, preferring the earliest assignment separator
+    // Find '=' or ':' outside quotes, preferring the earliest assignment separator.
+    // Quote awareness prevents PHP/JS FP such as: echo "wpa_psk=".$var;
     let bytes = active.as_bytes();
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut escaped = false;
     for (idx, &b) in bytes.iter().enumerate() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if b == b'\\' && (in_single || in_double) {
+            escaped = true;
+            continue;
+        }
+        if b == b'\'' && !in_double {
+            in_single = !in_single;
+            continue;
+        }
+        if b == b'"' && !in_single {
+            in_double = !in_double;
+            continue;
+        }
+        if in_single || in_double {
+            continue;
+        }
         if b == b'=' || b == b':' {
             // Avoid splitting URI schemes like http:// or mqtts:// when no key precedes them
             if b == b':' && active[idx + 1..].starts_with("//") {
@@ -381,6 +448,8 @@ fn split_assignment<'a>(raw_line: &'a str, active: &'a str) -> Option<(&'a str, 
             if key.is_empty() {
                 return None;
             }
+            // Object literals like `password: null,` keep a trailing comma — strip for value checks.
+            let val = val.trim_end_matches(',').trim();
             let lead_ws = raw_line.len() - raw_line.trim_start().len();
             return Some((key, val, lead_ws));
         }
@@ -398,11 +467,18 @@ fn split_assignment<'a>(raw_line: &'a str, active: &'a str) -> Option<(&'a str, 
 }
 
 fn normalize_key(raw_key: &str) -> String {
-    raw_key
+    let mut key = raw_key
         .trim()
         .trim_matches(&['"', '\''][..])
         .replace(['-', '.', ' '], "_")
-        .to_ascii_lowercase()
+        .to_ascii_lowercase();
+    // PHP/shell locals: `$admin_password` → `admin_password`
+    if let Some(stripped) = key.strip_prefix('$') {
+        key = stripped.to_string();
+    }
+    // JS object fields sometimes appear as `this_password` via earlier sanitization of `this.password`
+    // (`.` already mapped to `_` above).
+    key
 }
 
 fn unquote_value(val: &str) -> &str {
@@ -447,38 +523,173 @@ fn file_type_signal(file_class: FileTypeClass) -> EvidenceSignal {
     }
 }
 
-/// Check if a value is an external reference, environment substitution, or obvious placeholder.
-fn classify_suppression_reason(val: &str) -> Option<&'static str> {
-    let trimmed = val.trim();
+/// True when the RHS is a PHP/JS/runtime expression rather than a concrete secret literal.
+fn is_runtime_code_expression(val: &str) -> bool {
+    let trimmed = val.trim().trim_end_matches(';').trim();
     if trimmed.is_empty() {
+        return false;
+    }
+
+    // PHP variable / concat remnants: $passwd, ".$wpapsk."\n"
+    if trimmed.contains(".$") || trimmed.contains("\".$") || trimmed.contains("'.$") {
+        return true;
+    }
+    if trimmed.starts_with('$')
+        && trimmed.len() > 1
+        && trimmed[1..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return true;
+    }
+    if trimmed.starts_with("this.") || trimmed.starts_with("self.") {
+        return true;
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+
+    // DOM / browser / object-property copies in scripts:
+    // `token = tokens[j];`, `passwd = wifi.mbssid[0].WPAPSK`
+    if lower.contains(".value")
+        || lower.contains(".split(")
+        || lower.starts_with("wifi.")
+        || lower.starts_with("device.")
+        || lower.starts_with("config.")
+        || lower.starts_with("data.")
+    {
+        return true;
+    }
+    if trimmed.contains('[')
+        && trimmed.contains(']')
+        && !trimmed.contains('"')
+        && !trimmed.contains('\'')
+    {
+        return true;
+    }
+
+    // Common firmware helper / query APIs
+    const RUNTIME_PREFIXES: &[&str] = &[
+        "get(",
+        "query(",
+        "xg(",
+        "obj(",
+        "path.split(",
+        "document.",
+        "window.",
+        "localstorage.",
+        "sessionstorage.",
+        "echo ",
+        "printf(",
+        "sprintf(",
+        "strcat(",
+        "strcpy(",
+    ];
+    for prefix in RUNTIME_PREFIXES {
+        if lower.starts_with(prefix) {
+            return true;
+        }
+    }
+
+    // Generic function-call RHS: ident(...)
+    if let Some(paren) = trimmed.find('(') {
+        let callee = trimmed[..paren].trim();
+        if !callee.is_empty()
+            && callee
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '$')
+            && trimmed.contains(')')
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+/// Check if a value is an external reference, environment substitution, runtime expression,
+/// or obvious placeholder — not a concrete embedded secret literal.
+fn classify_suppression_reason(val: &str) -> Option<&'static str> {
+    // Unquote first while braces are intact so `${ENV}` / `{{tpl}}` stay recognizable.
+    let intact = unquote_value(val.trim()).trim().to_string();
+    if intact.is_empty() {
         return Some("empty_value");
     }
-    if (trimmed.starts_with("${") && trimmed.ends_with('}'))
-        || (trimmed.starts_with("$(") && trimmed.ends_with(')'))
-        || (trimmed.starts_with("{{") && trimmed.ends_with("}}"))
-        || (trimmed.starts_with('$')
-            && trimmed.len() > 1
-            && trimmed[1..]
+
+    if (intact.starts_with("${") && intact.ends_with('}'))
+        || (intact.starts_with("$(") && intact.ends_with(')'))
+        || (intact.starts_with("{{") && intact.ends_with("}}"))
+        || (intact.starts_with('$')
+            && intact.len() > 1
+            && intact[1..]
                 .chars()
-                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'))
+                .all(|c| c.is_ascii_alphanumeric() || c == '_'))
     {
         return Some("env_or_template_reference");
     }
-    if (trimmed.starts_with('<') && trimmed.ends_with('>'))
-        || trimmed.starts_with("/run/secrets/")
-        || trimmed.starts_with("/var/run/secrets/")
-        || trimmed.starts_with("/mnt/secure/")
-        || trimmed.starts_with("tpm2:")
-        || trimmed.starts_with("pkcs11:")
-        || trimmed.starts_with("vault:")
-        || trimmed.starts_with("arn:aws:secretsmanager:")
-        || trimmed.starts_with("file:///run/secrets/")
-        || trimmed.starts_with("systemd-creds:")
+    if (intact.starts_with('<') && intact.ends_with('>'))
+        || intact.starts_with("/run/secrets/")
+        || intact.starts_with("/var/run/secrets/")
+        || intact.starts_with("/mnt/secure/")
+        || intact.starts_with("tpm2:")
+        || intact.starts_with("pkcs11:")
+        || intact.starts_with("vault:")
+        || intact.starts_with("arn:aws:secretsmanager:")
+        || intact.starts_with("file:///run/secrets/")
+        || intact.starts_with("systemd-creds:")
     {
         return Some("external_secret_reference");
     }
 
+    // Strip only trailing statement/JSON terminators (`true}`, `"";`, `null,`) — never
+    // leading braces, which belong to template forms already handled above.
+    let trimmed = intact.trim_end_matches([',', ';', '}']).trim();
+    let trimmed = unquote_value(trimmed).trim();
+    if trimmed.is_empty() {
+        return Some("empty_value");
+    }
+
     let lower = trimmed.to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "null" | "undefined" | "none" | "nil" | "nan" | "true" | "false"
+    ) {
+        return Some("null_or_undefined_literal");
+    }
+
+    // UI/i18n labels frequently collide with credential key names (`"hs_password": "Password"`).
+    if matches!(
+        lower.as_str(),
+        "password"
+            | "passwd"
+            | "pass"
+            | "login"
+            | "username"
+            | "user"
+            | "token"
+            | "secret"
+            | "key"
+            | "hasło"
+            | "haslo"
+    ) {
+        return Some("ui_label_string");
+    }
+
+    // printf / hostapd style format placeholders embedded in binaries or scripts
+    if trimmed == "%s"
+        || trimmed == "%d"
+        || trimmed == "%u"
+        || trimmed == "%x"
+        || trimmed.starts_with("%s")
+        || trimmed.starts_with("%d")
+    {
+        return Some("format_string_placeholder");
+    }
+
+    // PHP/JS runtime expressions and DOM reads (DIR-815-class false positives)
+    if is_runtime_code_expression(trimmed) {
+        return Some("runtime_code_expression");
+    }
+
     if matches!(
         lower.as_str(),
         "changeme"
@@ -487,9 +698,6 @@ fn classify_suppression_reason(val: &str) -> Option<&'static str> {
             | "replaceme"
             | "todo"
             | "tbd"
-            | "none"
-            | "null"
-            | "nil"
             | "disabled"
             | "unset"
             | "example"
@@ -551,7 +759,7 @@ fn evaluate_assignment(
                 file_path: rel_path.to_string(),
                 line_number,
                 byte_offset,
-                evidence: rule.redacted_evidence.to_string(),
+                evidence: directive_evidence(key, "disabled"),
                 explanation: rule.explanation.to_string(),
                 remediation: rule.remediation.to_string(),
             });
@@ -570,7 +778,7 @@ fn evaluate_assignment(
                 file_path: rel_path.to_string(),
                 line_number,
                 byte_offset,
-                evidence: "TLS verification = enabled".to_string(),
+                evidence: directive_evidence(key, "enabled"),
             });
         }
         return;
@@ -603,7 +811,7 @@ fn evaluate_assignment(
                 file_path: rel_path.to_string(),
                 line_number,
                 byte_offset,
-                evidence: rule.redacted_evidence.to_string(),
+                evidence: directive_evidence(key, "enabled"),
                 explanation: rule.explanation.to_string(),
                 remediation: rule.remediation.to_string(),
             });
@@ -625,7 +833,7 @@ fn evaluate_assignment(
                 file_path: rel_path.to_string(),
                 line_number,
                 byte_offset,
-                evidence: "anonymous access = disabled".to_string(),
+                evidence: directive_evidence(key, "disabled"),
             });
         }
         return;
@@ -669,7 +877,7 @@ fn evaluate_assignment(
                 file_path: rel_path.to_string(),
                 line_number,
                 byte_offset,
-                evidence: rule.redacted_evidence.to_string(),
+                evidence: redacted_assignment_evidence(key),
             });
             return;
         }
@@ -696,7 +904,7 @@ fn evaluate_assignment(
             file_path: rel_path.to_string(),
             line_number,
             byte_offset,
-            evidence: rule.redacted_evidence.to_string(),
+            evidence: redacted_assignment_evidence(key),
             explanation: rule.explanation.to_string(),
             remediation: rule.remediation.to_string(),
         });
@@ -710,6 +918,27 @@ fn evaluate_assignment(
     };
 
     let rule = find_rule(matched_rule_id).expect("rule exists in registry");
+
+    // Translation packs use credential-shaped keys with localized UI labels, not secrets.
+    if is_ui_locale_path(&lower_path) {
+        outcome.suppressed.push(SuppressedCandidate {
+            rule_id: rule.id.to_string(),
+            category: rule.category.to_string(),
+            status: CandidateStatus::BenignOrSuppressed,
+            suppression_reason: "ui_locale_string".to_string(),
+            policy_points: 0,
+            signals: vec![EvidenceSignal {
+                name: "ui_locale_pack".to_string(),
+                points: -80,
+                detail: "Credential-shaped key inside a localization/language pack".to_string(),
+            }],
+            file_path: rel_path.to_string(),
+            line_number,
+            byte_offset,
+            evidence: redacted_assignment_evidence(key),
+        });
+        return;
+    }
 
     // Check if value is a placeholder, env var, or external secret store reference
     if let Some(reason) = classify_suppression_reason(val) {
@@ -730,7 +959,7 @@ fn evaluate_assignment(
             file_path: rel_path.to_string(),
             line_number,
             byte_offset,
-            evidence: rule.redacted_evidence.to_string(),
+            evidence: redacted_assignment_evidence(key),
         });
         return;
     }
@@ -786,7 +1015,7 @@ fn evaluate_assignment(
         file_path: rel_path.to_string(),
         line_number,
         byte_offset,
-        evidence: rule.redacted_evidence.to_string(),
+        evidence: redacted_assignment_evidence(key),
         explanation: rule.explanation.to_string(),
         remediation: rule.remediation.to_string(),
     });
@@ -797,7 +1026,7 @@ fn evaluate_uri_value(
     rel_path: &str,
     file_class: FileTypeClass,
     _section: &str,
-    _key: &str,
+    key: &str,
     uri_val: &str,
     line_number: Option<usize>,
     byte_offset: u64,
@@ -831,7 +1060,11 @@ fn evaluate_uri_value(
                 file_path: rel_path.to_string(),
                 line_number,
                 byte_offset,
-                evidence: rule.redacted_evidence.to_string(),
+                evidence: if key.is_empty() {
+                    rule.redacted_evidence.to_string()
+                } else {
+                    redacted_assignment_evidence(key)
+                },
             });
             return;
         }
@@ -857,7 +1090,11 @@ fn evaluate_uri_value(
             file_path: rel_path.to_string(),
             line_number,
             byte_offset,
-            evidence: rule.redacted_evidence.to_string(),
+            evidence: if key.is_empty() {
+                rule.redacted_evidence.to_string()
+            } else {
+                redacted_assignment_evidence(key)
+            },
             explanation: rule.explanation.to_string(),
             remediation: rule.remediation.to_string(),
         });
@@ -921,7 +1158,26 @@ fn is_anonymous_access_key(key: &str) -> bool {
     )
 }
 
+fn is_ui_locale_path(lower_path: &str) -> bool {
+    lower_path.contains("/lang/")
+        || lower_path.contains("/langs/")
+        || lower_path.contains("/i18n/")
+        || lower_path.contains("/locale/")
+        || lower_path.contains("/locales/")
+        || lower_path.contains("/translation/")
+        || lower_path.contains("/translations/")
+}
+
 fn is_non_secret_identifier_key(key: &str) -> bool {
+    // Firmware web UIs often expose RPC/config enum names that end with `_pass`
+    // but hold numeric IDs, not credentials (`RPC_NEED_CHANGE_PASS:15`).
+    if key.starts_with("rpc_")
+        || key.starts_with("config_id_")
+        || key.starts_with("cmd_")
+        || (key.starts_with("br2_package_") && key.contains("_name"))
+    {
+        return true;
+    }
     matches!(
         key,
         "username"
@@ -1356,6 +1612,132 @@ mod tests {
         assert_eq!(res.findings[0].evidence, "password = [REDACTED]");
         let serialized = serde_json::to_string(&res.findings).unwrap();
         assert!(!serialized.contains("SuperSecretIoTRootPass99!"));
+    }
+
+    #[test]
+    fn evidence_preserves_concrete_assignment_key_while_redacting_value() {
+        let sample = "radius_auth_password = \"CustomRadiusSecret!\"\n";
+        let res = analyze_file_bytes("etc/gateway.conf", sample.as_bytes(), 16384);
+        assert_eq!(res.findings.len(), 1);
+        assert_eq!(
+            res.findings[0].evidence,
+            "radius_auth_password = [REDACTED]"
+        );
+        let serialized = serde_json::to_string(&res.findings).unwrap();
+        assert!(!serialized.contains("CustomRadiusSecret!"));
+    }
+
+    #[test]
+    fn suppresses_php_js_runtime_false_positives_from_vendor_firmware() {
+        let sample = r#"
+	$dhcpplus_pass	 = get("s", $inetp."/ipv4/dhcpplus/password");
+		"passwd=".$passwd."\n".
+		echo "auth_server_shared_secret=".$Rsecret."\n";
+		else									{echo "wpa_psk=".$wpapsk."\n";}
+		var token = path.split("/");
+		var passwd = OBJ("passwd").value;
+	password: null,
+		this.password = XG(this.passwdp);
+		$ppp_password = get("x",$path_inet_wan1."/ppp4/password");
+"#;
+        let res = analyze_file_bytes("etc/services/WIFI/hostapdcfg.php", sample.as_bytes(), 16384);
+        assert!(
+            res.findings.is_empty(),
+            "expected no actionable findings, got: {:?}",
+            res.findings
+                .iter()
+                .map(|f| (&f.evidence, &f.file_path))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            !res.suppressed.is_empty(),
+            "expected suppressions for runtime expressions"
+        );
+        assert!(res
+            .suppressed
+            .iter()
+            .any(|s| s.suppression_reason == "runtime_code_expression"
+                || s.suppression_reason == "null_or_undefined_literal"
+                || s.suppression_reason == "env_or_template_reference"));
+    }
+
+    #[test]
+    fn still_flags_hardcoded_secret_literal_inside_php_file() {
+        let sample = "$admin_password = \"SyntheticRootPass_v2!Invalid\";\n";
+        let res = analyze_file_bytes("htdocs/config.php", sample.as_bytes(), 16384);
+        assert_eq!(res.findings.len(), 1);
+        assert_eq!(res.findings[0].rule_id, "FL001");
+        assert_eq!(res.findings[0].evidence, "admin_password = [REDACTED]");
+    }
+
+    #[test]
+    fn suppresses_empty_string_password_assignments_in_php() {
+        let sample = "$Password=\"\";\n$password = \"\";\n$ppp_password = \"\";\n";
+        let res = analyze_file_bytes("htdocs/widget/wan_stats.xml", sample.as_bytes(), 16384);
+        assert!(
+            res.findings.is_empty(),
+            "empty passwords must not be actionable: {:?}",
+            res.findings
+        );
+        assert!(res
+            .suppressed
+            .iter()
+            .any(|s| s.suppression_reason == "empty_value"));
+    }
+
+    #[test]
+    fn flags_short_hardcoded_isp_default_password_literal() {
+        let sample = "$pass = \"flets\";\n$user = \"flets@flets\";\n";
+        let res = analyze_file_bytes("etc/services/INET/inet_ppp4.php", sample.as_bytes(), 16384);
+        assert_eq!(res.findings.len(), 1);
+        assert_eq!(res.findings[0].rule_id, "FL001");
+        assert_eq!(res.findings[0].evidence, "pass = [REDACTED]");
+    }
+
+    #[test]
+    fn suppresses_boolean_ui_label_and_rpc_enum_false_positives() {
+        let sample = r#"
+"default_pass": true,
+"hs_password" : "Password",
+RPC_NEED_CHANGE_PASS:15,
+CONFIG_ID_SET_PASS:69,
+token = tokens[j];
+remote._token = token;
+passwd = wifi.mbssid[0].WPAPSK;
+"#;
+        let res = analyze_file_bytes("webs/www/scripts/sm_params.js", sample.as_bytes(), 16384);
+        assert!(
+            res.findings.is_empty(),
+            "expected suppressions only, got {:?}",
+            res.findings.iter().map(|f| &f.evidence).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn suppresses_localized_password_labels_in_lang_packs() {
+        let sample = "\"hs_password\" : \"Mot de passe\",\n\"hs_login\" : \"Login\",\n";
+        let res = analyze_file_bytes("webs/www/scripts/lang/fra.js", sample.as_bytes(), 16384);
+        assert!(res.findings.is_empty());
+        assert!(res
+            .suppressed
+            .iter()
+            .any(|s| s.suppression_reason == "ui_locale_string"));
+    }
+
+    #[test]
+    fn suppresses_binary_format_string_password_placeholder() {
+        let mut bytes = Vec::from(&b"password=%s\0"[..]);
+        bytes.extend_from_slice(&[0u8; 8]);
+        let res = analyze_file_bytes("usr/sbin/hostapd", &bytes, 16384);
+        assert!(
+            res.findings.is_empty(),
+            "format-string password=%s must not be actionable: {:?}",
+            res.findings
+        );
+        assert!(res
+            .suppressed
+            .iter()
+            .any(|s| s.suppression_reason == "format_string_placeholder"));
     }
 
     #[test]

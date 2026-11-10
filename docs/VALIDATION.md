@@ -21,6 +21,7 @@ This document records the verification steps executed locally on Linux (`x86_64-
 
 - **Isolated Binwalk v3 Container Test (`live_binwalk`)**:
   - Command: `docker build -t firmlens-binwalk:3.1.0 containers/binwalk && cargo test -p firmlens-core --locked --test ingestion live_binwalk -- --ignored`
+  - Extraction: `cargo test -p firmlens-core --locked --test ingestion live_binwalk_extract_gzip_layer -- --ignored`
   - Status: Covered by the `binwalk-identification` job in `.github/workflows/ci.yml` and tested via unit/sanitization tests in `firmlens-core` when the local `firmlens-binwalk:3.1.0` image is not prebuilt.
 - **Playwright Browser E2E (`npm run test:e2e`)**:
   - Command: `cd web && npx playwright install --with-deps chromium && npm run test:e2e`

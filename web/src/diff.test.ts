@@ -24,7 +24,7 @@ function makeMockStoredScan(
     filename,
     created_unix_ms: 1700000000000,
     report: {
-      schema_version: "2.1",
+      schema_version: "2.2",
       metadata: {
         scanner_version: "0.2.0",
         ruleset_version: "2",

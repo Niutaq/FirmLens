@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const SCHEMA_VERSION: &str = "2.1";
+pub const SCHEMA_VERSION: &str = "2.2";
 pub const SCANNER_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const RULESET_VERSION: &str = "2";
 
@@ -70,6 +70,8 @@ pub enum InputKind {
 pub enum IngestionOutcome {
     DirectoryScanned,
     ArchiveExtracted,
+    /// Firmware image unpacked via isolated Binwalk v3 extraction (`--extract --matryoshka`).
+    ImageExtracted,
     RejectedArchive,
     UnsupportedImage,
 }
@@ -271,7 +273,7 @@ pub struct SummaryCounts {
     pub scan_errors: usize,
 }
 
-/// Complete JSON Schema 2.1 scan report.
+/// Complete JSON Schema 2.2 scan report.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ScanReport {
     pub schema_version: String,

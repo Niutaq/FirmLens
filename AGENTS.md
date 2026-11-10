@@ -35,4 +35,4 @@ Update README usage when flags change; document JSON schema changes, confidence 
 ## Scope
 Prefer maintainable local code. No microservices, databases, message brokers, Kubernetes, firmware execution or speculative frameworks. Do not silently substitute mocks for features.
 
-Ingestion supports bounded TAR/TAR.GZ processing; arbitrary firmware extraction remains disabled. Binwalk identification must run inside the configured isolation boundary, never through an unsandboxed fallback. Treat signatures and extracted files as distinct outcomes.
+Ingestion supports bounded TAR/TAR.GZ/ZIP processing plus optional isolated Binwalk v3 filesystem extraction (`--binwalk-extract`) for opaque vendor images. Binwalk identification and extraction must run inside the configured Docker isolation boundary, never through an unsandboxed host fallback. Treat signatures and extracted files as distinct outcomes; always delete temporary extraction workspaces after scanning.

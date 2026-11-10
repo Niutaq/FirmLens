@@ -1,8 +1,24 @@
 # Session Handoff
 
-## Stan projektu (Zaktualizowano: 2026-11-08)
+## Stan projektu (Zaktualizowano: 2026-11-10)
 
 ### Zrealizowane i zweryfikowane etapy
+
+#### Etap 9b - Redukcja FP PHP/JS + wiarygodniejsze evidence/ścieżki (DIR-815)
+- [crates/firmlens-core/src/detector.rs](crates/firmlens-core/src/detector.rs): quote-aware `split_assignment`, klasyfikacja `.php`/`.js` jako `Script`, suppression `runtime_code_expression` / `null_or_undefined_literal` / `ui_label_string` / `format_string_placeholder` / puste `=""`; env/template `${...}` sprawdzane przed stripem terminatorów JSON.
+- [crates/firmlens-api/src/lib.rs](crates/firmlens-api/src/lib.rs): po `image_extracted` zachowuje ścieżki drzewa (rewrite tylko prefiksu `firmware.bin` → nazwa uploadu); evidence pokazuje realny klucz (`admin_password = [REDACTED]`).
+- Pomiar `--binwalk-extract` na Downloads:
+  - `DIR815A1_FW103b01.bin`: **15 → 2** actionable (ISP defaults `flets`/`guest` w `inet_ppp4.php`)
+  - `20140326_1144_DIR_815_2.5.5_sdk-master.bin`: **0** actionable / 12 suppressed
+  - `2019.10.09-14.56_DIR_815E_RT8197F_3.0.1_release.bin`: **4** actionable (3× FL003 PEM + `br2_package_anweb_admin_pass`)
+- Fixtures: `vulnerable` **12**, `hardened` **0**, `benign` **0**.
+
+#### Etap 9 - Dwuetapowy Pipeline: Izolowana Ekstrakcja Binwalk → Skan Statyczny → Cleanup (Schema 2.2)
+- [crates/firmlens-core/src/pipeline.rs](crates/firmlens-core/src/pipeline.rs), [crates/firmlens-core/src/binwalk.rs](crates/firmlens-core/src/binwalk.rs), [crates/firmlens-core/src/scanner.rs](crates/firmlens-core/src/scanner.rs):
+  - Nowy koordynator dwuetapowy: opcjonalne `binwalk --extract --matryoshka` w kontenerze Docker (argv-only, timeout, bez host fallback), następnie rekurencyjny skan wyodrębnionego drzewa i RAII cleanup (`TempDir` / `cleanup_verified`) nawet przy błędzie skanowania.
+  - Nowy `IngestionOutcome::ImageExtracted`, flaga CLI `--binwalk-extract`, API włącza unpack na `spawn_blocking` (nie blokuje reactora Tokio).
+  - Kontener [containers/binwalk/Dockerfile](containers/binwalk/Dockerfile) rozszerzony o helpery ekstrakcji (`sasquatch`, `squashfs-tools`, kompresja/archiwa).
+  - Schema JSON podniesiona do `2.2`; dokumentacja: [docs/BINWALK.md](docs/BINWALK.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/REPORTING.md](docs/REPORTING.md).
 
 #### Etap 8 - Obsługa Archiwów `.zip` oraz Obrazów Binarnych `.bin` / `.img` / `.fw` / `.chk` / `.pat` w Silniku, CLI, API i Web UI
 - [crates/firmlens-core/src/model.rs](file:///home/niutaq/Documents/FirmLens/FirmLens/crates/firmlens-core/src/model.rs) oraz [crates/firmlens-core/src/ingestion.rs](file:///home/niutaq/Documents/FirmLens/FirmLens/crates/firmlens-core/src/ingestion.rs):
@@ -62,13 +78,10 @@
 ---
 
 ### Status walidacji
-- `cargo fmt --all -- --check`: **PASS**
-- `cargo clippy --workspace --all-targets --locked -- -D warnings`: **PASS**
-- `cargo build --workspace --locked`: **PASS**
-- `cargo test --workspace --locked`: **PASS** (20 testów aktywnych: 9 unit w `firmlens-core`, 5 integracyjnych w `tests/ingestion.rs`, 2 integracyjne w `firmlens-cli`, 4 unit/integracyjne w `firmlens-api` + 1 `#[ignore]` `live_binwalk`)
-- `cargo run -p firmlens-cli -- scan fixtures/{vulnerable,hardened,benign} --format json`: **PASS** (`vulnerable`: 12 actionable, 1 hint, 5 suppressed, exit `2`; `hardened`: 0 actionable, 12 suppressed, exit `2`; `benign`: 0 actionable, 1 review, 6 suppressed, exit `0`)
-- `python3 scripts/generate_fixtures.py` & `python3 scripts/generate_archives.py`: **PASS**
-- `python3 scripts/check_web_workflow.py`: **PASS**
-- `web/` (`npm ci`, `npm test`, `npm run typecheck`, `npm run build`): **PASS** (0 luk w `npm audit`, produkcyjna paczka Vite zbudowana w `web/dist/`)
-- `docker build -t firmlens-binwalk:3.1.0 containers/binwalk` & `cargo run -p firmlens-cli -- scan generated-fixtures/signature-test.bin --binwalk --format json`: **PASS** (`status: "identified"`, `tool_version: "binwalk 3.1.0"`, `isolated_container: true`, `offset: 256 -> gzip_compressed_data`).
-- Test E2E przeglądarki (`npm run test:e2e` wymagający pobrania przeglądarki Chromium przez Playwright): skonfigurowany w `.github/workflows/ci.yml`.
+- `cargo fmt --all -- --check`: **PASS** (Etap 9)
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`: **PASS** (Etap 9)
+- `cargo build --workspace --locked`: **PASS** (Etap 9)
+- `cargo test --workspace --locked`: **PASS** (Etap 9: 23 aktywne + 2 `#[ignore]` live_binwalk / live_binwalk_extract_gzip_layer)
+- `cargo run -p firmlens-cli -- scan fixtures/{vulnerable,hardened} --format json`: **PASS** (Schema `2.2`; `vulnerable` exit `2`, `hardened` exit `2`)
+- `python3 scripts/check_web_workflow.py` / pełny rebuild obrazu `firmlens-binwalk:3.1.0` z nowymi helperami ekstrakcji: **nie uruchomione w tej sesji** (wymaga Docker daemon + `npm`; testy jednostkowe ekstrakcji bez obrazu: PASS)
+- Test E2E przeglądarki (`npm run test:e2e`): skonfigurowany w `.github/workflows/ci.yml`.

@@ -121,7 +121,7 @@ def main() -> None:
                 if status == 200:
                     health = json.loads(body.decode("utf-8"))
                     assert health["status"] == "ok"
-                    assert health["schema_version"] == "2.1"
+                    assert health["schema_version"] == "2.2"
                     ready = True
                     break
             except Exception:

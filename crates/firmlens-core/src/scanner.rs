@@ -1,18 +1,17 @@
-use crate::binwalk::identify_image_in_container;
 use crate::detector::{analyze_file_bytes, classify_file_type};
 use crate::error::FirmLensError;
-use crate::ingestion::ingest_input;
 use crate::model::{
     CandidateStatus, FileAnalysisStatus, FileInventoryEntry, FileTypeClass, Finding, FindingKind,
-    IdentificationResult, IdentificationStatus, IngestionLimits, IngestionOutcome, InputKind,
-    ReportMetadata, ScanErrorEntry, ScanLimits, ScanReport, Severity, SkippedEntry, SummaryCounts,
+    IdentificationStatus, IngestionLimits, IngestionOutcome, InputKind, ReportMetadata,
+    ScanErrorEntry, ScanLimits, ScanReport, Severity, SkippedEntry, SummaryCounts,
     SuppressedCandidate, RULESET_VERSION, SCANNER_VERSION, SCHEMA_VERSION,
 };
+use crate::pipeline::prepare_scan_workspace;
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 
 /// Options controlling a single FirmLens scan invocation.
@@ -22,10 +21,14 @@ pub struct ScanOptions {
     pub ingestion_limits: IngestionLimits,
     /// Optional output path so the scanner never analyzes its own target report path.
     pub excluded_output_path: Option<PathBuf>,
+    /// Isolated Binwalk signature identification only (no filesystem extraction).
     pub enable_binwalk: bool,
+    /// Isolated Binwalk `--extract --matryoshka` unpack before static analysis.
+    pub enable_binwalk_extract: bool,
     pub binwalk_image: Option<String>,
     /// When true, standalone binary/config file inputs (`InputKind::BinaryImage`) are also
     /// inspected for embedded credential strings and PEM keys up to `max_file_bytes`.
+    /// Also used as a fallback when `--binwalk-extract` is requested but unpacking fails.
     pub scan_binary_image_payload: bool,
 }
 
@@ -74,13 +77,22 @@ fn classify_file_exclusion(rel_path: &str, file_name: &str) -> Option<&'static s
 
 /// Execute a deterministic scan on a directory, TAR/TAR.GZ archive, or firmware image.
 pub fn scan_path(input_path: &Path, options: &ScanOptions) -> Result<ScanReport, FirmLensError> {
+    scan_staged_ingestion(input_path, options)
+}
+
+/// Two-stage scan entry used by [`crate::pipeline`]: prepare workspace (optional unpack),
+/// analyze the tree, then always tear down temporary extraction directories.
+pub fn scan_staged_ingestion(
+    input_path: &Path,
+    options: &ScanOptions,
+) -> Result<ScanReport, FirmLensError> {
     let started_wall = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64;
     let started_inst = Instant::now();
 
-    let mut staged = ingest_input(input_path, &options.ingestion_limits)?;
+    let (mut staged, identification) = prepare_scan_workspace(input_path, options)?;
 
     let mut findings: Vec<Finding> = Vec::new();
     let mut suppressed: Vec<SuppressedCandidate> = Vec::new();
@@ -350,6 +362,7 @@ pub fn scan_path(input_path: &Path, options: &ScanOptions) -> Result<ScanReport,
     } else if staged.provenance.input_kind == InputKind::BinaryImage
         && options.scan_binary_image_payload
     {
+        // Optional raw binary payload scan / fallback when no extracted tree is available.
         let rel_path = input_path
             .file_name()
             .and_then(|s| s.to_str())
@@ -493,42 +506,11 @@ pub fn scan_path(input_path: &Path, options: &ScanOptions) -> Result<ScanReport,
             staged.provenance.outcome,
             IngestionOutcome::RejectedArchive | IngestionOutcome::UnsupportedImage
         )
-        || staged.provenance.counters.nested_archives_detected > 0;
-
-    let identification = if staged.provenance.input_kind == InputKind::BinaryImage {
-        if options.enable_binwalk {
-            identify_image_in_container(
-                input_path,
-                options.binwalk_image.as_deref(),
-                options.ingestion_limits.max_input_bytes,
-                Duration::from_millis(options.ingestion_limits.ingestion_timeout_ms),
-            )
-        } else {
-            IdentificationResult {
-                status: IdentificationStatus::NotRequested,
-                tool_version: None,
-                isolated_container: false,
-                signatures: Vec::new(),
-                note: Some(
-                    "Unsupported binary image; pass --binwalk to run isolated signature identification."
-                        .to_string(),
-                ),
-            }
-        }
-    } else if options.enable_binwalk {
-        IdentificationResult {
-            status: IdentificationStatus::NotRequested,
-            tool_version: None,
-            isolated_container: false,
-            signatures: Vec::new(),
-            note: Some(
-                "Binwalk identification applies only to unexpanded binary images; filesystem/archive inputs are scanned directly."
-                    .to_string(),
-            ),
-        }
-    } else {
-        IdentificationResult::default()
-    };
+        || staged.provenance.counters.nested_archives_detected > 0
+        || matches!(
+            identification.status,
+            IdentificationStatus::Unavailable | IdentificationStatus::Failed
+        );
 
     let duration_ms = started_inst.elapsed().as_millis() as u64;
 

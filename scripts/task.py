@@ -27,6 +27,10 @@ WEB_DIR = ROOT / "web"
 
 def build_env() -> dict[str, str]:
     env = os.environ.copy()
+    # Always build/run from the project-local target dir. External CARGO_TARGET_DIR
+    # (e.g. agent sandbox caches) otherwise makes `cargo build` update one tree while
+    # `make dev` executes a stale ROOT/target/debug binary — producing false-clean scans.
+    env["CARGO_TARGET_DIR"] = str(ROOT / "target")
     if shutil.which("npm", path=env.get("PATH")) is None:
         nvm_bins = sorted(
             glob.glob(str(Path.home() / ".nvm" / "versions" / "node" / "*" / "bin")),

@@ -63,6 +63,30 @@ fn binwalk_with_missing_local_image_reports_unavailable_without_host_fallback() 
 }
 
 #[test]
+fn binwalk_extract_with_missing_image_stays_unsupported_and_cleans_up() {
+    let dir = tempdir().unwrap();
+    let img_path = dir.path().join("firmware.chk");
+    fs::write(&img_path, b"FIRMLENS_TEST_COMPRESSED_IMAGE").unwrap();
+
+    let opts = ScanOptions {
+        enable_binwalk_extract: true,
+        binwalk_image: Some("firmlens-nonexistent-image:0.0.0-invalid".to_string()),
+        scan_binary_image_payload: false,
+        ..Default::default()
+    };
+
+    let report = scan_path(&img_path, &opts).unwrap();
+    assert!(report.partial);
+    assert_eq!(report.ingestion.outcome, IngestionOutcome::UnsupportedImage);
+    assert!(report.ingestion.cleanup_verified);
+    assert_eq!(report.metadata.files_scanned, 0);
+    assert_eq!(
+        report.identification.status,
+        IdentificationStatus::Unavailable
+    );
+}
+
+#[test]
 fn binwalk_output_parser_sanitizes_raw_descriptions_and_never_echoes_secrets() {
     let sample_table = "\
 DECIMAL       HEXADECIMAL     DESCRIPTION
@@ -101,6 +125,43 @@ fn binwalk_version_matcher_accepts_only_pinned_3_1_0() {
     assert!(is_pinned_binwalk_version("binwalk 3.1.0\n"));
     assert!(!is_pinned_binwalk_version("binwalk 2.3.4\n"));
     assert!(!is_pinned_binwalk_version("binwalk 3.2.0\n"));
+}
+
+#[test]
+#[ignore = "Requires locally built Docker image firmlens-binwalk:3.1.0 with extraction helpers"]
+fn live_binwalk_extract_gzip_layer() {
+    let dir = tempdir().unwrap();
+    let img_path = dir.path().join("extract-test.bin");
+
+    let mut image_bytes = Vec::new();
+    image_bytes.extend_from_slice(b"FIRMLENS-SYNTH-IMAGE-V1\x00");
+    image_bytes.resize(256, 0xff);
+
+    let mut gz = GzEncoder::new(Vec::new(), Compression::default());
+    gz.write_all(b"device_password=firmware-lab-only\nmqtt_user=lab\n")
+        .unwrap();
+    let gz_segment = gz.finish().unwrap();
+    image_bytes.extend_from_slice(&gz_segment);
+    image_bytes.extend_from_slice(&[0u8; 128]);
+    fs::write(&img_path, &image_bytes).unwrap();
+
+    let opts = ScanOptions {
+        enable_binwalk_extract: true,
+        binwalk_image: None,
+        scan_binary_image_payload: false,
+        ..Default::default()
+    };
+
+    let report = scan_path(&img_path, &opts).unwrap();
+    assert!(report.ingestion.cleanup_verified);
+    assert!(
+        report.ingestion.outcome == IngestionOutcome::ImageExtracted
+            || report.identification.status == IdentificationStatus::Identified,
+        "expected image extraction or at least identification, got ingestion={:?} ident={:?}",
+        report.ingestion.outcome,
+        report.identification
+    );
+    assert!(report.identification.isolated_container);
 }
 
 #[test]

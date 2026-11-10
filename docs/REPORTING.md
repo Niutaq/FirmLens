@@ -1,12 +1,12 @@
-# Reporting & JSON Schema 2.1
+# Reporting & JSON Schema 2.2
 
-FirmLens emits deterministic reports in JSON Schema `2.1` (`SCHEMA_VERSION = "2.1"`). Schema `2.1` preserves all Schema `2.0` fields (policy-point evidence signals, candidate status classification, ingestion provenance, and optional Binwalk identification) and adds a bounded `inventory` (`Vec<FileInventoryEntry>`) so CLI and web consumers can inspect per-file scan outcomes.
+FirmLens emits deterministic reports in JSON Schema `2.2` (`SCHEMA_VERSION = "2.2"`). Schema `2.2` preserves Schema `2.1` fields (policy-point evidence signals, candidate status classification, ingestion provenance, inventory, and optional Binwalk identification) and adds `ingestion.outcome = image_extracted` when an opaque firmware image was unpacked via isolated Binwalk before static analysis.
 
 ## 1. Top-Level `ScanReport` Structure
 
-- `schema_version`: `"2.1"`
+- `schema_version`: `"2.2"`
 - `metadata`: `ReportMetadata` containing `scanner_version` (`"0.2.0"`), `ruleset_version` (`"2"`), `root`, `started_unix_ms`, `duration_ms`, `files_scanned`, `bytes_read`, and `limits` (`ScanLimits`: `max_file_bytes`, `max_total_bytes`, `max_entries`, `max_depth`, `max_record_bytes`, `max_findings`).
-- `ingestion`: `IngestionProvenance` describing `input_kind` (`directory`, `tar_archive`, `tar_gz_archive`, `binary_image`), `outcome` (`directory_scanned`, `archive_extracted`, `rejected_archive`, `unsupported_image`), `ingestion_limits` (`IngestionLimits`), `counters` (`ExtractionCounters`), `rejection_reason`, and `cleanup_verified`.
+- `ingestion`: `IngestionProvenance` describing `input_kind` (`directory`, `tar_archive`, `tar_gz_archive`, `zip_archive`, `binary_image`), `outcome` (`directory_scanned`, `archive_extracted`, `image_extracted`, `rejected_archive`, `unsupported_image`), `ingestion_limits` (`IngestionLimits`), `counters` (`ExtractionCounters`), `rejection_reason`, and `cleanup_verified`.
 - `identification`: `IdentificationResult` for optional isolated Binwalk v3 signature detection (`status`: `not_requested`, `identified`, `unavailable`, `failed`; `tool_version`, `isolated_container`, `signatures`, `note`).
 - `summary`: `SummaryCounts` with explicit counts for `total_findings`, `actionable_findings`, `review_candidates`, `informational_hints`, `suppressed_candidates`, `by_severity`, `skipped_entries`, and `scan_errors`.
 - `findings`: Deterministically ordered `Vec<Finding>` containing actionable (`confirmed_by_structural_rule`, `likely_secret`), review (`requires_review`), and hint (`kind = "hint"`) items.

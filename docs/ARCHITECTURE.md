@@ -6,17 +6,17 @@ FirmLens is structured as a modular Cargo workspace with a single analysis engin
 
 | Component | Path | Responsibility |
 | --- | --- | --- |
-| **`firmlens-core`** | `crates/firmlens-core` | Pure library crate owning `ScanReport` (JSON Schema 2.1), bounded TAR/TAR.GZ ingestion (`ingestion.rs`), isolated Docker Binwalk v3 identification (`binwalk.rs`), lexical-contextual secret & configuration detection (`detector.rs`, `rules.rs`), deterministic directory traversal (`scanner.rs`), and typed errors (`error.rs`). Operates without HTTP, CLI, or a database. |
+| **`firmlens-core`** | `crates/firmlens-core` | Pure library crate owning `ScanReport` (JSON Schema 2.2), bounded TAR/TAR.GZ/ZIP ingestion (`ingestion.rs`), isolated Docker Binwalk v3 identification/extraction (`binwalk.rs`, `pipeline.rs`), lexical-contextual secret & configuration detection (`detector.rs`, `rules.rs`), deterministic directory traversal (`scanner.rs`), and typed errors (`error.rs`). Operates without HTTP, CLI, or a database. |
 | **`firmlens-cli`** | `crates/firmlens-cli` | Command-line interface (`clap`), human-readable terminal summaries, deterministic JSON report emission, atomic new-file creation (`--output`), `RUST_LOG` diagnostics on `stderr`, and exit code mapping (`0`, `1`, `2`, `3`). |
 | **`firmlens-api`** | `crates/firmlens-api` | Loopback-only (`127.0.0.1:8787`) Axum HTTP adapter. Streams bounded `.tar`/`.tar.gz`/`.tgz` uploads to temporary workspaces, invokes `firmlens_core::scan_path` inside bounded worker permits, retains up to 8 sanitized reports in memory, and computes structural report diffs (`/api/diff`). |
 | **`web/`** | `web/` | Local React 19 + TypeScript + Vite single-page interface for uploading archives, inspecting `Overview`, `Findings`, `Files`, and `Diff` views, and exporting Schema 2.1 JSON reports. |
 
 ## 2. End-to-End Analysis Pipeline
 
-1. **Input Classification & Ingestion (`ingestion.rs`)**
+1. **Input Classification & Ingestion (`ingestion.rs`, `pipeline.rs`)**
    - Unpacked directories are traversed directly with `follow_links(false)` (`IngestionOutcome::DirectoryScanned`).
-   - `.tar`, `.tar.gz`, and `.tgz` files are extracted into an ephemeral temporary directory using two-stage `BoundedReader` streams (`max_input_bytes`, `max_expanded_bytes`, `max_member_bytes`) and strict component validation (`IngestionOutcome::ArchiveExtracted`). Any disallowed member aborts and deletes the entire staging directory (`IngestionOutcome::RejectedArchive`).
-   - Unsupported binary images record `IngestionOutcome::UnsupportedImage` (`partial = true`) and optionally invoke isolated Binwalk v3 signature identification (`--binwalk`).
+   - `.tar`, `.tar.gz`, `.tgz`, and `.zip` files are extracted into an ephemeral temporary directory using two-stage `BoundedReader` streams (`max_input_bytes`, `max_expanded_bytes`, `max_member_bytes`) and strict component validation (`IngestionOutcome::ArchiveExtracted`). Any disallowed member aborts and deletes the entire staging directory (`IngestionOutcome::RejectedArchive`).
+   - Opaque binary images optionally unpack via isolated Binwalk v3 (`--binwalk-extract` → `IngestionOutcome::ImageExtracted`). Without unpacking they remain `UnsupportedImage` (`partial = true`) and may run signature identification (`--binwalk`) and/or bounded raw binary payload scanning.
 2. **Traversal & Inventory (`scanner.rs`)**
    - Files and directories are sorted deterministically by normalized relative path.
    - Build/VCS directories, generated `*.firmlens.json` / `report*.json` files, and documentation (`*.md`, `*.rst`, `*.adoc`, `README*`, `LICENSE*`) are explicitly excluded and recorded in `skipped_files` and `inventory` (`FileAnalysisStatus::Skipped`).

@@ -1,6 +1,6 @@
 # Threat Model & Security Boundaries
 
-FirmLens analyzes untrusted firmware filesystem trees and bounded archive envelopes (`TAR`, `TAR.GZ`). Because static analysis tools are frequently run in CI/CD pipelines and analyst workstations against adversarial or malformed third-party firmware images, the parser and extractor are treated as a primary attack surface.
+FirmLens analyzes untrusted firmware filesystem trees, bounded archive envelopes (`TAR`, `TAR.GZ`, `ZIP`), and optionally Binwalk-extracted vendor images inside a Docker isolation boundary. Because static analysis tools are frequently run in CI/CD pipelines and analyst workstations against adversarial or malformed third-party firmware images, the parser and extractor are treated as a primary attack surface.
 
 ## 1. Untrusted Archive Ingestion Threats & Controls
 
