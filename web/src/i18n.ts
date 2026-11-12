@@ -347,6 +347,8 @@ export const UI_TEXT = {
     archiveUpload: "Firmware Upload",
     uploading: "Analyzing...",
     uploadBtn: "Upload Firmware",
+    uploadUnsupportedExt:
+      "Unsupported file type. Use .tar, .tar.gz, .tgz, .zip, .bin/.img/.fw/.chk (or config/key files)",
     uploadMeta: "Max 256 MiB · Loopback 127.0.0.1",
     retainedScans: "Loaded Scans",
     emptyScansHint: "No scans loaded yet. Click '+ Upload Firmware' to analyze an archive or image.",
@@ -462,6 +464,8 @@ export const UI_TEXT = {
     archiveUpload: "Wgrywanie firmware",
     uploading: "Analizowanie...",
     uploadBtn: "Wgraj Firmware",
+    uploadUnsupportedExt:
+      "Nieobsługiwany typ pliku. Użyj .tar, .tar.gz, .tgz, .zip, .bin/.img/.fw/.chk (lub plików konfiguracyjnych/kluczy)",
     uploadMeta: "Maks. 256 MiB · Loopback 127.0.0.1",
     retainedScans: "Wgrane skany",
     emptyScansHint: "Brak wgranych skanów. Kliknij '+ Wgraj Firmware', aby przeanalizować plik.",

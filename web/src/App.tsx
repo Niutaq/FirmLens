@@ -12,6 +12,7 @@ import {
   UI_TEXT,
 } from "./i18n";
 import { displayFirmwarePath } from "./paths";
+import { isAllowedUploadFilename, UPLOAD_FILE_ACCEPT } from "./upload";
 
 type ActiveTab = "overview" | "findings" | "files" | "diff";
 type FindingFilter = "all" | "actionable" | "review" | "hints" | "suppressed";
@@ -788,6 +789,9 @@ export function App() {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        if (!isAllowedUploadFilename(file.name)) {
+          throw new Error(`${t.uploadUnsupportedExt}: ${file.name}`);
+        }
         const res = await fetch(
           `/api/scans?filename=${encodeURIComponent(file.name)}`,
           {
@@ -963,7 +967,7 @@ export function App() {
               id="archive-upload-input"
               data-testid="archive-upload-input"
               type="file"
-              accept=".tar,.tar.gz,.tgz,.zip,.bin,.img,.fw,.chk,.pat,.rom,.ubi,.dat,.conf,.cfg,.ini,.env,.pem,.key,.json,.yaml,.yml"
+              accept={UPLOAD_FILE_ACCEPT}
               multiple
               onChange={handleFileUpload}
               disabled={uploading}

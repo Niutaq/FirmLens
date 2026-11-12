@@ -41,9 +41,19 @@ def build_env() -> dict[str, str]:
     return env
 
 
-def run_step(cmd: list[str], cwd: Path = ROOT, env: dict[str, str] | None = None) -> None:
+def run_step(
+    cmd: list[str],
+    cwd: Path = ROOT,
+    env: dict[str, str] | None = None,
+    *,
+    allowed_exit_codes: frozenset[int] | None = None,
+) -> int:
     print(f"\n==> {' '.join(cmd)}", flush=True)
-    subprocess.run(cmd, cwd=str(cwd), env=env or build_env(), check=True)
+    completed = subprocess.run(cmd, cwd=str(cwd), env=env or build_env())
+    allowed = allowed_exit_codes if allowed_exit_codes is not None else frozenset({0})
+    if completed.returncode not in allowed:
+        raise subprocess.CalledProcessError(completed.returncode, cmd)
+    return completed.returncode
 
 
 def ensure_fixtures_and_archives(env: dict[str, str]) -> None:
@@ -169,9 +179,18 @@ def cmd_dev(env: dict[str, str]) -> None:
 
 
 def cmd_binwalk(env: dict[str, str]) -> None:
+    """Build the pinned Binwalk image, then smoke-test identify + extract modes.
+
+    CLI exit codes for scans are semantic, not always fatal:
+      0 = full scoped coverage
+      2 = PARTIAL coverage (expected for UnsupportedImage / identify-only)
+      3 = actionable findings with --fail-on-findings
+    """
     ensure_fixtures_and_archives(env)
     run_step(["docker", "build", "-t", "firmlens-binwalk:3.1.0", "containers/binwalk"], env=env)
-    run_step(
+
+    # Identify-only: signatures, no filesystem unpack. Exit 2 (PARTIAL) is expected.
+    identify_rc = run_step(
         [
             "cargo",
             "run",
@@ -184,6 +203,37 @@ def cmd_binwalk(env: dict[str, str]) -> None:
             "--binwalk",
         ],
         env=env,
+        allowed_exit_codes=frozenset({0, 2}),
+    )
+    print(
+        f"[OK] Binwalk identify smoke-test finished (exit {identify_rc}; "
+        "PARTIAL is expected without --binwalk-extract).",
+        flush=True,
+    )
+
+    # Extract + scan: unpack nested gzip layer from signature-test.bin, then walk the tree.
+    # (router-ota-image.bin is string-payload only — Binwalk has nothing to unpack there.)
+    extract_rc = run_step(
+        [
+            "cargo",
+            "run",
+            "-p",
+            "firmlens-cli",
+            "--locked",
+            "--",
+            "scan",
+            "generated-fixtures/signature-test.bin",
+            "--binwalk-extract",
+        ],
+        env=env,
+        allowed_exit_codes=frozenset({0, 2, 3}),
+    )
+    print(
+        f"[OK] Binwalk extract smoke-test finished (exit {extract_rc}, "
+        "ingestion.outcome should be image_extracted). "
+        "For vendor firmware: keep OrbStack running, then re-upload .bin in the web UI "
+        "or run: cargo run -p firmlens-cli -- scan PATH.bin --binwalk-extract",
+        flush=True,
     )
 
 
