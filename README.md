@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Initial_Demo-08CE88?style=flat-square" alt="Initial Demo" />
   <img src="https://img.shields.io/badge/JSON_Schema-2.2-32d2f2?style=flat-square" alt="Schema 2.2" />
-  <img src="https://img.shields.io/badge/Rust-Stable_(2021)-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust Stable" />
+  <img src="https://img.shields.io/badge/Rust-Stable_%2B_Edition_2021-000000?style=flat-square&logo=rust&logoColor=white" alt="Rust Stable + Edition 2021" />
   <img src="https://img.shields.io/badge/React-19.0-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 19" />
   <img src="https://img.shields.io/badge/Platform-Linux_%7C_macOS_%7C_Windows-4b5563?style=flat-square" alt="Linux | macOS | Windows" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License" />
@@ -45,7 +45,7 @@ Built as an MSc cybersecurity research platform, FirmLens combines an independen
 
 | Layer | Technology | Version | Application in FirmLens |
 | :--- | :--- | :--- | :--- |
-| **Core Engine** | ![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white) `firmlens-core` | `2021 Edition` | Bounded `TAR`/`TAR.GZ` ingestion, Zip-Slip protection, lexical-contextual rule evaluation, redaction-by-construction, and Schema `2.1` report models. |
+| **Core Engine** | ![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white) `firmlens-core` | Stable (`rust-toolchain.toml`) · Edition `2021` | Bounded `TAR`/`TAR.GZ`/`ZIP` ingestion, isolated Binwalk unpack, Zip-Slip protection, lexical-contextual rule evaluation, redaction-by-construction, and Schema `2.2` report models. |
 | **Pattern Matching** | ![Rust](https://img.shields.io/badge/Aho--Corasick_&_Regex-DEA584?style=flat-square&logo=rust&logoColor=black) `aho-corasick` / `regex` | `1.1` / `1.11` | Multi-pattern automaton for binary `.dat`/`.bin` streams and structural syntax matching for PEM blocks, URIs, and config assignments. |
 | **Archive & FS Safety** | ![Rust](https://img.shields.io/badge/tar_&_flate2-334155?style=flat-square&logo=files&logoColor=white) `tar` / `flate2` / `walkdir` | `0.4` / `1.1` / `2.5` | Pure-Rust streaming decompression (`BoundedReader`), symlink rejection (`follow_links(false)`), and atomic temporary workspace cleanup (`tempfile 3.15`). |
 | **CLI Adapter** | ![Terminal](https://img.shields.io/badge/Clap_CLI-4EAA25?style=flat-square&logo=gnubash&logoColor=white) `firmlens-cli` (`clap`) | `4.5` | Deterministic command-line interface, terminal/JSON formatting, safe `--output` creation (`create_new`), and exit code semantics (`0/1/2/3`). |
