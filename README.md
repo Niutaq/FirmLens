@@ -31,12 +31,12 @@ Built as an MSc cybersecurity research platform, FirmLens combines an independen
 ## Application Preview
 
 <p align="center">
-  <img src="docs/assets/dashboard-preview.jpg" alt="FirmLens Web Dashboard Screenshot" width="100%" />
+  <img src="docs/assets/dashboard-preview.jpg" alt="FirmLens dashboard — DIR815A1_FW103b01.bin after isolated Binwalk (2 actionable, 41 suppressed, redacted evidence)" width="100%" />
 </p>
 
 * **Top Command Deck & Mouse 4/5 Navigation:** Full-width navigation dock (`Dashboard`, `Findings`, `Files & Config`, `Version Diff`) synchronized with browser history (`Back` / `Forward`).
 * **Interactive Security Posture & IoT Vectors:** Clickable donut chart, IoT attack-vector bars (`Auth`, `Cloud`, `TLS/Key`, `Net/URI`, `Safe`), and live scan comparison (`Version Diff`).
-* **SonarCloud / SonarQube Code Inspector:** Clicking any file path on a finding opens the file inspector, highlights the exact line/byte offset, and shows redacted evidence alongside remediation guidance.
+* **SonarCloud / SonarQube Code Inspector:** Clicking any file path on a finding opens the file inspector, highlights the exact line/byte offset, and shows **redacted** evidence alongside remediation guidance (values never leave the engine).
 * **Standards Mapping & Bilingual UI (`EN | PL`):** Every rule maps to **MITRE CWE**, **OWASP IoT Top 10**, and **ETSI EN 303 645**, with instant English/Polish switching.
 
 ---
