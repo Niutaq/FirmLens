@@ -1,13 +1,11 @@
 <p align="center">
   <img src="docs/assets/logo.svg" alt="FirmLens Logo" width="110" />
 </p>
-
 <h1 align="center">FirmLens</h1>
-
+ 
 <p align="center">
   <strong>Firmware-Aware Static Security Analysis · Redaction by Construction · IoT &amp; SmartHome Security Toolkit</strong>
 </p>
-
 <p align="center">
   <img src="https://img.shields.io/badge/Status-Initial_Demo-08CE88?style=flat-square" alt="Initial Demo" />
   <img src="https://img.shields.io/badge/JSON_Schema-2.2-32d2f2?style=flat-square" alt="Schema 2.2" />
@@ -16,114 +14,108 @@
   <img src="https://img.shields.io/badge/Platform-Linux_%7C_macOS_%7C_Windows-4b5563?style=flat-square" alt="Linux | macOS | Windows" />
   <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="MIT License" />
 </p>
-
----
-
+ 
 **FirmLens** is a deterministic static security analysis toolkit designed to detect hardcoded credentials, exposed cryptographic keys, and unsafe network/cloud configurations inside **IoT and SmartHome firmware** (`unpacked rootfs directories`, `.tar`, `.tar.gz`, `.tgz`, `.zip` archives, and `.bin` / `.img` / `.fw` / `.chk` / `.pat` binary images).
-
+ 
 Built as an MSc cybersecurity research platform, FirmLens combines an independent **Rust analysis engine (`firmlens-core`)**, a **command-line interface (`firmlens-cli`)**, an optional **isolated Docker Binwalk v3 signature identifier**, and a **local Web Application (`firmlens-api` + `web/`)** with bilingual (`EN` / `PL`) support and SonarQube-style configuration inspection.
-
+ 
 > [!IMPORTANT]
 > **Redaction by Construction:** FirmLens never executes firmware, never validates credentials against live network services, and **never includes secret values, private key bodies, or reversible encodings** in reports, logs, or UI views.
-
+ 
 ---
-
+ 
 ## Application Preview
-
+ 
 <p align="center">
   <img src="docs/assets/dashboard-preview.png" alt="FirmLens dashboard — DIR815A1_FW103b01.bin after isolated Binwalk (2 actionable, 41 suppressed, redacted evidence)" width="100%" />
 </p>
-
 * **Top Command Deck & Mouse 4/5 Navigation:** Full-width navigation dock (`Dashboard`, `Findings`, `Files & Config`, `Version Diff`) synchronized with browser history (`Back` / `Forward`).
 * **Interactive Security Posture & IoT Vectors:** Clickable donut chart, IoT attack-vector bars (`Auth`, `Cloud`, `TLS/Key`, `Net/URI`, `Safe`), and live scan comparison (`Version Diff`).
 * **SonarCloud / SonarQube Code Inspector:** Clicking any file path on a finding opens the file inspector, highlights the exact line/byte offset, and shows **redacted** evidence alongside remediation guidance (values never leave the engine).
 * **Standards Mapping & Bilingual UI (`EN | PL`):** Every rule maps to **MITRE CWE**, **OWASP IoT Top 10**, and **ETSI EN 303 645**, with instant English/Polish switching.
-
 ---
-
-## Technology Stack
-
-| Layer | Technology | Version | Application in FirmLens |
-| :--- | :--- | :--- | :--- |
-| **Core Engine** | ![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white) `firmlens-core` | Stable (`rust-toolchain.toml`) · Edition `2021` | Bounded `TAR`/`TAR.GZ`/`ZIP` ingestion, isolated Binwalk unpack, Zip-Slip protection, lexical-contextual rule evaluation, redaction-by-construction, and Schema `2.2` report models. |
-| **Pattern Matching** | ![Rust](https://img.shields.io/badge/Aho--Corasick_&_Regex-DEA584?style=flat-square&logo=rust&logoColor=black) `aho-corasick` / `regex` | `1.1` / `1.11` | Multi-pattern automaton for binary `.dat`/`.bin` streams and structural syntax matching for PEM blocks, URIs, and config assignments. |
-| **Archive & FS Safety** | ![Rust](https://img.shields.io/badge/tar_&_flate2-334155?style=flat-square&logo=files&logoColor=white) `tar` / `flate2` / `walkdir` | `0.4` / `1.1` / `2.5` | Pure-Rust streaming decompression (`BoundedReader`), symlink rejection (`follow_links(false)`), and atomic temporary workspace cleanup (`tempfile 3.15`). |
-| **CLI Adapter** | ![Terminal](https://img.shields.io/badge/Clap_CLI-4EAA25?style=flat-square&logo=gnubash&logoColor=white) `firmlens-cli` (`clap`) | `4.5` | Deterministic command-line interface, terminal/JSON formatting, safe `--output` creation (`create_new`), and exit code semantics (`0/1/2/3`). |
-| **Local HTTP API** | ![Axum](https://img.shields.io/badge/Axum_&_Tokio-0f172a?style=flat-square&logo=rust&logoColor=08CE88) `firmlens-api` | `0.8` / `1.0` | Loopback-only (`127.0.0.1:8787`) REST API with `Host`/`Origin` validation, bounded upload streaming (128 MiB), semaphore job control, and report diffing. |
-| **Web Frontend** | ![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) | `19.0` / `5.7` / `6.0` | Interactive SPA dashboard, Sonar-style config inspector, `EN/PL` localization, and client/server version diff visualization. |
-| **Binary Identification & Extraction** | ![Docker](https://img.shields.io/badge/Docker_+_Binwalk_v3-2496ED?style=flat-square&logo=docker&logoColor=white) `containers/binwalk` | `3.1.0` | Optional sandboxed signature identification and `--extract --matryoshka` unpacking inside a network-disabled, capability-dropped container (never a host binwalk fallback). |
-| **Automation & Testing** | ![Python](https://img.shields.io/badge/Python_3-3776AB?style=flat-square&logo=python&logoColor=white) ![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=flat-square&logo=playwright&logoColor=white) | `3.10+` / `1.50` | Synthetic firmware fixture generation, USB/dropzone auto-scanner (`usb_watch.py`), CLI/API parity verifier, and E2E browser tests. |
-
+ 
+## Architecture & Tech Stack
+ 
+| Layer | Technology | Role |
+|:------|:-----------|:-----|
+| Core engine | [![Rust](https://img.shields.io/badge/Rust-stable-000000?logo=rust&logoColor=white)](https://www.rust-lang.org/) `firmlens-core` | Bounded `TAR` / `TAR.GZ` / `ZIP` ingestion, Zip-Slip protection, contextual rule evaluation, Schema `2.2` reports |
+| Pattern matching | [![aho-corasick](https://img.shields.io/badge/aho--corasick-1.1-DEA584)](https://github.com/BurntSushi/aho-corasick) [![regex](https://img.shields.io/badge/regex-1.11-DEA584)](https://github.com/rust-lang/regex) | Multi-pattern scan of binary streams; structural matching of PEM blocks, URIs, and config assignments |
+| Archive safety | [![tar](https://img.shields.io/badge/tar-0.4-334155)](https://github.com/alexcrichton/tar-rs) [![flate2](https://img.shields.io/badge/flate2-1.1-334155)](https://github.com/rust-lang/flate2-rs) [![walkdir](https://img.shields.io/badge/walkdir-2.5-334155)](https://github.com/BurntSushi/walkdir) [![tempfile](https://img.shields.io/badge/tempfile-3.15-334155)](https://github.com/Stebalien/tempfile) | Streaming decompression (`BoundedReader`), symlink rejection, atomic temp-workspace cleanup |
+| CLI | [![clap](https://img.shields.io/badge/clap-4.5-4EAA25)](https://github.com/clap-rs/clap) `firmlens-cli` | Deterministic terminal/JSON output, safe `--output` (`create_new`), exit codes `0/1/2/3` |
+| Local HTTP API | [![Axum](https://img.shields.io/badge/Axum-0.8-0f172a)](https://github.com/tokio-rs/axum) [![Tokio](https://img.shields.io/badge/Tokio-1.0-0f172a)](https://tokio.rs/) `firmlens-api` | Loopback-only REST API (`127.0.0.1:8787`), `Host`/`Origin` validation, 128 MiB bounded uploads, report diffing |
+| Web frontend | [![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react&logoColor=black)](https://react.dev/) [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/) [![Vite](https://img.shields.io/badge/Vite-6.0-646CFF?logo=vite&logoColor=white)](https://vite.dev/) | SPA dashboard, Sonar-style config inspector, `EN/PL` localization, Version Diff |
+| Firmware unpacking | [![Docker](https://img.shields.io/badge/Docker-sandbox-2496ED?logo=docker&logoColor=white)](https://www.docker.com/) [![Binwalk](https://img.shields.io/badge/Binwalk-3.1.0-D32F2F)](https://github.com/ReFirmLabs/binwalk) | Optional signature ID and `--matryoshka` extraction in a network-disabled, capability-dropped container (no host fallback) |
+| Automation & tests | [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/) [![Playwright](https://img.shields.io/badge/Playwright-1.50-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/) | Fixture generation, USB/dropzone watcher (`usb_watch.py`), CLI/API parity check, E2E browser tests |
+ 
 ---
-
+ 
 ## Quick Start (Easy Setup)
-
+ 
 ### Prerequisites
 - **Rust** (stable toolchain via [rustup](https://rustup.rs/))
 - **Node.js** (`22.12+` recommended) & `npm`
 - **Python 3** (standard library only, used for fixture generation and helper scripts)
-
 ### Option A: One-Command Full Stack Launch (Recommended)
 Generates synthetic IoT/SmartHome firmware archives, starts the local API (`127.0.0.1:8787`), starts the USB/dropzone watcher, and launches the Vite web interface (`127.0.0.1:5173`):
-
+ 
 ```bash
 python3 scripts/task.py dev
 ```
 *(Or simply run `make dev` on Linux/macOS).*
-
+ 
 Then open **http://127.0.0.1:5173** in your browser and upload archives or binary images from `generated-fixtures/`:
 - `generated-fixtures/rpi4-smarthome-hub-v1.tar.gz` (Vulnerable SmartHome hub)
 - `generated-fixtures/rpi4-smarthome-hub-v2-hardened.tar.gz` (Hardened release for Version Diff)
 - `generated-fixtures/smart-ipcam-v1.zip` (Vendor `.zip` firmware archive)
 - `generated-fixtures/router-ota-image.bin` (Binary `.bin` OTA firmware image)
 - `generated-fixtures/vulnerable.tar`, `generated-fixtures/hardened.tar.gz`, `generated-fixtures/benign.tar`
-
 ---
-
+ 
 ### Option B: Step-by-Step Manual Commands (2 Terminals)
-
+ 
 **Terminal 1 — Build & Start Backend API (`127.0.0.1:8787`):**
 ```bash
 cargo build --workspace --locked
 python3 scripts/generate_archives.py
 cargo run -p firmlens-api --locked
 ```
-
+ 
 **Terminal 2 — Install & Start Web Frontend (`127.0.0.1:5173`):**
 ```bash
 cd web
 npm ci
 npm run dev
 ```
-
+ 
 ---
-
+ 
 ## Command-Line Interface (`firmlens-cli`)
-
+ 
 You can run FirmLens directly via `cargo run -p firmlens-cli --` or install the binary locally:
-
+ 
 ```bash
 # Optional: install `firmlens` into ~/.cargo/bin
 cargo install --path crates/firmlens-cli --locked
 ```
-
+ 
 ### Common CLI Commands
-
+ 
 ```bash
 # 1. List all 12 detection rules with CWE, OWASP IoT Top 10 & ETSI mappings
 cargo run -p firmlens-cli -- rules list
-
+ 
 # 2. Scan an unpacked firmware directory (human-readable terminal output)
 cargo run -p firmlens-cli -- scan fixtures/vulnerable
-
+ 
 # 3. Scan a firmware directory or TAR/TAR.GZ archive and output JSON (Schema 2.1)
 cargo run -p firmlens-cli -- scan fixtures/vulnerable --format json
 cargo run -p firmlens-cli -- scan generated-fixtures/vulnerable.tar
 cargo run -p firmlens-cli -- scan generated-fixtures/hardened.tar.gz --format json
-
+ 
 # 4. Save JSON report to a new file (never overwrites existing files)
 cargo run -p firmlens-cli -- scan fixtures/vulnerable --output report.json
-
+ 
 # 5. Customize resource & ingestion safety limits
 cargo run -p firmlens-cli -- scan generated-fixtures/vulnerable.tar \
   --max-input-bytes 67108864 \
@@ -132,39 +124,39 @@ cargo run -p firmlens-cli -- scan generated-fixtures/vulnerable.tar \
   --max-extraction-depth 24 \
   --ingestion-timeout-ms 15000
 ```
-
+ 
 ### CLI Exit Codes
-
+ 
 | Exit Code | Meaning |
 | :---: | :--- |
 | `0` | **Full scoped coverage** completed; no error occurred (findings allowed unless `--fail-on-findings` is set). |
 | `1` | **Fatal error** (invalid input path, unsafe output path, or report write failure). |
 | `2` | **Partial coverage** (at least one file was excluded/skipped/truncated, e.g., excluded `.md` docs, or CLI syntax error). |
 | `3` | **Actionable findings detected** on a full scoped scan when `--fail-on-findings` is enabled. |
-
+ 
 ---
-
+ 
 ## Optional: Isolated Binwalk v3 Signature Identification
-
+ 
 FirmLens integrates **Binwalk v3 (`3.1.0`)** strictly inside a rootless/unprivileged Docker boundary (`--network none`, `--read-only`, `--cap-drop ALL`, memory/PID/CPU limits) to identify monolithic binary headers without exposing the host to parser vulnerabilities:
-
+ 
 ```bash
 # Build the pinned local container image
 docker build -t firmlens-binwalk:3.1.0 containers/binwalk
-
+ 
 # Scan a binary image with isolated signature identification
 cargo run -p firmlens-cli -- scan generated-fixtures/signature-test.bin --binwalk --format json
 # Unpack opaque firmware images then scan the extracted tree (requires the same image):
 cargo run -p firmlens-cli -- scan generated-fixtures/router-ota-image.bin --binwalk-extract --format json
 ```
-
+ 
 > [!NOTE]
 > Identified binary signatures are reported distinctly from extracted files. If Docker is unavailable, FirmLens records `unavailable` rather than falling back to unsandboxed host execution.
-
+ 
 ---
-
+ 
 ## Detection Rules & Security Standards (`FL001`–`FL012`)
-
+ 
 | Rule ID | IoT Vector | Subject | MITRE CWE | OWASP IoT Top 10 | ETSI EN 303 645 |
 | :---: | :---: | :--- | :---: | :---: | :---: |
 | **FL001** | `Auth` | Hardcoded Password Assignment | `CWE-798` | `I1` Weak/Hardcoded Passwords | `5.1-1` |
@@ -179,9 +171,9 @@ cargo run -p firmlens-cli -- scan generated-fixtures/router-ota-image.bin --binw
 | **FL010** | `Cloud` | Device-to-Cloud Shared Access Secret | `CWE-798` | `I3` Insecure Ecosystem Interfaces | `5.4-1` |
 | **FL011** | `Cloud` | Factory Provisioning / Bootstrap Secret | `CWE-798` | `I4` Lack of Secure Update Mechanism | `5.1-2` |
 | **FL012** | `Cloud` | Embedded Cloud Service Account Secret | `CWE-798` | `I3` Insecure Ecosystem Interfaces | `5.4-1` |
-
+ 
 ### Candidate Statuses & What Are "Suppressions"?
-
+ 
 Every inspected configuration candidate receives an explicit status based on integer policy-point signals (`EvidenceSignal`):
 1. `confirmed_by_structural_rule` *(Actionable)* — Structural match (e.g., complete PEM private key block or URI `user:password@host`).
 2. `likely_secret` *(Actionable)* — High-score credential assignment in a configuration or service context.
@@ -193,37 +185,36 @@ Every inspected configuration candidate receives an explicit status based on int
    - `public_certificate_or_key` (`-----BEGIN CERTIFICATE-----`)
    - `placeholder_value` / `empty_value` (`changeme_placeholder`, `<token>`)
    - `uri_without_credentials` (`mqtts://broker.iot.invalid:8883`)
-
 ---
-
+ 
 ## Validation & Reproducible Benchmarks
-
+ 
 | Synthetic Fixture | Actionable | Hints | Review | Suppressed | Coverage Status | Exit Code |
 | :--- | :---: | :---: | :---: | :---: | :--- | :---: |
 | `fixtures/vulnerable` | **12** | 1 | 0 | 5 | Partial *(1 example `.md` excluded)* | `2` |
 | `fixtures/hardened` | **0** | 0 | 0 | **12** | Partial *(1 example `.md` excluded)* | `2` |
 | `fixtures/benign` | **0** | 0 | 1 | **6** | **Full Scoped Coverage** | `0` |
-
+ 
 Run the full verification suite across Rust, CLI/API parity, and the React frontend:
-
+ 
 ```bash
 # 1. Rust formatting, linting, build, and 20 unit/integration tests
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo build --workspace --locked
 cargo test --workspace --locked
-
+ 
 # 2. End-to-end CLI <-> HTTP API report parity check
 python3 scripts/check_web_workflow.py
-
+ 
 # 3. Frontend unit tests, TypeScript typecheck, and production build
 cd web && npm test && npm run typecheck && npm run build
 ```
-
+ 
 ---
 
 ## Project Roadmap
-
+ 
 - [x] **Milestone 1 — Core Engine & Schema 2.1 (`firmlens-core`)**
   - Bounded `TAR`/`TAR.GZ` ingestion (`BoundedReader`), Zip-Slip & symlink rejection, atomic temp-dir cleanup, and per-file inventory (`FileInventoryEntry`).
 - [x] **Milestone 2 — Lexical-Contextual IoT Detection (`FL001`–`FL012`)**
@@ -238,11 +229,10 @@ cd web && npm test && npm run typecheck && npm run build
   - Isolated container extraction for read-only SquashFS / JFFS2 / UBIFS partition images.
   - Extended structural parsers for UCI (OpenWrt), systemd unit drop-ins, and device-tree blobs (`.dtb`).
   - SARIF 2.1.0 export adapter for CI/CD supply-chain pipelines.
-
 ---
-
+ 
 ## Documentation Index
-
+ 
 - [Architecture & Module Boundaries](docs/ARCHITECTURE.md)
 - [Threat Model & Parser Safety](docs/THREAT_MODEL.md)
 - [Detection Policy & Evidence Signals](docs/DETECTION.md)
@@ -250,9 +240,8 @@ cd web && npm test && npm run typecheck && npm run build
 - [Binwalk v3 Container Isolation](docs/BINWALK.md)
 - [Local Web Application & API Guide](docs/WEB_APPLICATION.md)
 - [Evaluation Protocol](docs/EVALUATION.md) · [Validation Log](docs/VALIDATION.md) · [Roadmap](docs/ROADMAP.md)
-
 ---
-
+ 
 ## License
-
+ 
 Released under the [MIT License](LICENSE).
